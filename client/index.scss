@@ -1,0 +1,45 @@
+body {
+    // the body has a margin by default, remove it
+    margin: 0;
+}
+
+#panel_column {
+    display: flex;
+    height: 100vh;
+    padding: 4px;
+    position: absolute;
+    // this column is only for placement, it should not be clickable
+    pointer-events: none;
+    flex-direction: column;
+    justify-content: end;
+}
+
+#panel_column>* {
+    margin: 4px;
+    // children of the panel column should be clickable again
+    pointer-events: auto;
+    background-color: seagreen;
+    padding: 8px;
+}
+
+
+#option_panel {
+    flex-wrap: wrap;
+}
+
+.field {
+    display: flex;
+    justify-content: end;
+}
+
+#map {
+    // this is necessary because it is not really placed inside the parent
+    height: 100vh;
+    width: 100vw;
+    position: absolute;
+    z-index: -1;
+}
+
+* {
+    box-sizing: border-box;
+}

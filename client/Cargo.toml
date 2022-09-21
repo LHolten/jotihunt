@@ -1,0 +1,12 @@
+[package]
+name = "jotihunt"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+wasm-bindgen = "0.2.83"
+web-sys = { version = "0.3.60", features = ["Geolocation", "Navigator", "Window"] }
+gloo = "0.8.0"
+mk-geolocation = {git = "https://gitlab.com/mkroehnert/mk-geolocation"}
