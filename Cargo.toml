@@ -1,0 +1,20 @@
+[package]
+name = "jotihunt"
+version = "0.1.0"
+edition = "2021"
+
+# [workspace]
+# members = [".", "client"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.65"
+futures-util = {version = "0.3.24", default-features=false, features = ["sink"]}
+async-stream = "0.3.3"
+jotihunt-client = {path="client"}
+postcard = {version = "1.0.2", features= ["use-std"]}
+serde = "1.0.144"
+sled = "0.34.7"
+tokio = {version = "1.21.1", features = ["net", "rt-multi-thread"]}
+tokio-tungstenite = "*"

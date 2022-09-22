@@ -1,34 +1,14 @@
-// #[repr(u8)]
-// pub enum Sector {
-//     Alpha,
-//     Bravo,
-//     Charlie,
-//     Delta,
-//     Echo,
-//     Foxtrot,
-// }
-// const SECTORS: [&'static str; 6] = ["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot"];
+use serde::{Deserialize, Serialize};
 
-// pub struct Time {
-//     hour: u8,
-//     half: bool,
-// }
-
-pub struct Location {
-    lat: String,
-    lng: String,
-}
-
-pub enum Axis {
-    Latitude,
-    Longitude,
-}
-
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AtomicEdit {
-    // sector: usize,
-    // time: usize,
-    // axis: Axis,
-    value: String,
-    old: String,
-    new: String,
+    pub key: String,
+    pub old: String,
+    pub new: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Broadcast {
+    pub key: String,
+    pub new: String,
 }

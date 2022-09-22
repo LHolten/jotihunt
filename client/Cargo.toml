@@ -1,5 +1,5 @@
 [package]
-name = "jotihunt"
+name = "jotihunt-client"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,3 +10,5 @@ wasm-bindgen = "0.2.83"
 web-sys = { version = "0.3.60", features = ["Geolocation", "Navigator", "Window"] }
 gloo = "0.8.0"
 mk-geolocation = {git = "https://gitlab.com/mkroehnert/mk-geolocation"}
+serde = "1.0.144"
+postcard = "1.0.2"
