@@ -13,13 +13,13 @@ pub struct TimeSlice {
     pub foxes: BTreeMap<String, Fox>,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Address {
     pub time_slice: String,
     pub fox_name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Fox {
     pub latitude: String,
     pub longitude: String,

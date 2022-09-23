@@ -1,16 +1,12 @@
-use futures::{channel::mpsc, future, SinkExt, StreamExt, TryStreamExt};
-use gloo::{
-    dialogs::prompt,
-    events::EventListener,
-    net::websocket::{futures::WebSocket, Message},
-    utils::document,
-};
-use jotihunt_client::update::{AtomicEdit, Broadcast};
+use futures::{channel::mpsc, SinkExt, StreamExt};
+use gloo::{events::EventListener, net::websocket::futures::WebSocket, utils::document};
+use jotihunt_client::update::AtomicEdit;
 use state::{Address, Fox, State};
 // use mk_geolocation::callback::Position;
 use sycamore::{futures::spawn_local_scoped, prelude::*};
 use wasm_bindgen::prelude::*;
 
+mod comms;
 mod state;
 mod update;
 
@@ -60,35 +56,16 @@ fn location_editor() {
             let (queue_write, queue_read) = mpsc::unbounded();
             let queue_write = create_ref(cx, queue_write);
 
-            spawn_local_scoped(cx, async {
-                queue_read
-                    .map(|edit| {
-                        let msg = Message::Bytes(postcard::to_stdvec(&edit).unwrap());
-                        Ok(msg)
-                    })
-                    .forward(write)
-                    .await
-                    .unwrap();
-            });
+            spawn_local_scoped(cx, comms::write_data(queue_read, write));
+            spawn_local_scoped(cx, comms::read_data(read, data));
 
-            spawn_local_scoped(cx, async move {
-                read.try_for_each(|msg| match msg {
-                    Message::Text(_) => panic!("we want bytes"),
-                    Message::Bytes(bin) => {
-                        let broadcast: Broadcast = postcard::from_bytes(&bin).unwrap();
-                        data.modify().insert(
-                            postcard::from_bytes(&broadcast.key).unwrap(),
-                            postcard::from_bytes(&broadcast.value).unwrap(),
-                        );
-                        future::ok(())
-                    }
-                })
-                .await
-                .unwrap();
-            });
+            let new_fox = create_signal(cx, "".to_owned());
 
             view! {cx,
-                input(bind:value=current_time, list="time_stamps")
+                div(class="field") {
+                    label(for="time_stamp"){"Time stamp:"}
+                    input(id="time_stamp", bind:value=current_time, list="time_stamps", size=10)
+                }
                 datalist(id="time_stamps"){
                     Keyed(
                         iterable=slice_names,
@@ -125,18 +102,34 @@ fn location_editor() {
                     },
                     key=|(key, fox)| (key.clone(), fox.clone())
                 )
-                input(type="button", value="Add fox!", on:click=move |_|{
-                    let name = prompt("fox name", None).unwrap();
-                    let edit = AtomicEdit{
-                        key: postcard::to_stdvec(&Address{
+                div(class="field"){
+                    input(size=10, bind:value=new_fox)
+                    input(type="button", value="Add", on:click=move |_|{
+                        let edit = AtomicEdit{
+                            key: postcard::to_stdvec(&Address{
+                                time_slice: current_time.get().as_ref().clone(),
+                                fox_name: new_fox.get().as_ref().clone()
+                            }).unwrap(),
+                            old: vec![],
+                            new: postcard::to_stdvec(&Fox::default()).unwrap()
+                        };
+                        spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
+                    })
+                    input(type="button", value="Del", on:click=move |_|{
+                        let address = Address{
                             time_slice: current_time.get().as_ref().clone(),
-                            fox_name: name
-                        }).unwrap(),
-                        old: vec![],
-                        new: postcard::to_stdvec(&Address::default()).unwrap()
-                    };
-                    spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
-                })
+                            fox_name: new_fox.get().as_ref().clone()
+                        };
+                        if let Some(old_fox) = data.get().get(&address) {
+                            let edit = AtomicEdit{
+                                key: postcard::to_stdvec(&address).unwrap(),
+                                old: postcard::to_stdvec(old_fox).unwrap(),
+                                new: vec![]
+                            };
+                            spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
+                        }
+                    })
+                }
             }
         },
         &coord_editor,
