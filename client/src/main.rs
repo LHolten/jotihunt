@@ -1,26 +1,13 @@
 use futures::{channel::mpsc, SinkExt, StreamExt};
-use gloo::{events::EventListener, net::websocket::futures::WebSocket, utils::document};
+use gloo::{net::websocket::futures::WebSocket, utils::document};
 use jotihunt_client::update::AtomicEdit;
 use state::{Address, Fox, State};
 // use mk_geolocation::callback::Position;
 use sycamore::{futures::spawn_local_scoped, prelude::*};
-use wasm_bindgen::prelude::*;
 
 mod comms;
 mod state;
 mod update;
-
-#[wasm_bindgen(module = "/leaflet.js")]
-extern "C" {
-    type Map;
-
-    fn make_map() -> Map;
-
-    type Marker;
-
-    fn add_marker(map: &Map, lat: f64, lng: f64) -> Marker;
-
-}
 
 fn location_editor() {
     let coord_editor = document()
@@ -52,13 +39,12 @@ fn location_editor() {
             let ws = WebSocket::open("ws://localhost:8090").unwrap();
             // let password = prompt("password", None).unwrap();
             let (write, read) = ws.split();
-
             let (queue_write, queue_read) = mpsc::unbounded();
-            let queue_write = create_ref(cx, queue_write);
 
             spawn_local_scoped(cx, comms::write_data(queue_read, write));
             spawn_local_scoped(cx, comms::read_data(read, data));
 
+            let queue_write = create_ref(cx, queue_write);
             let new_fox = create_signal(cx, "".to_owned());
 
             view! {cx,
@@ -137,21 +123,21 @@ fn location_editor() {
 }
 
 fn main() {
-    let map = &*Box::leak(Box::new(make_map()));
-
     // let pos = Position::new(move |p| {
     //     add_marker(map, p.coords().latitude(), p.coords().longitude());
     // });
     // forget(pos);
 
-    let button = document()
-        .get_element_by_id("add_point")
-        .expect("there is a add_point button");
+    // let button = document()
+    //     .get_element_by_id("add_point")
+    //     .expect("there is a add_point button");
 
-    let on_click = EventListener::new(&button, "click", move |_event| {
-        add_marker(map, 51.5, -0.09);
-    });
-    on_click.forget();
+    // let on_click = EventListener::new(&button, "click", move |_event| {
+    //     // add_marker(map, 51.5, -0.09);
+    //     let marker = add_marker(map, 199735.0, 307365.0);
+    //     // remove_marker(map, marker);
+    // });
+    // on_click.forget();
 
     location_editor();
 }
