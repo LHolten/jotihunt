@@ -18,7 +18,7 @@ extern "C" {
 
     type Marker;
 
-    fn add_marker(map: &Map, lat: f64, lng: f64) -> Marker;
+    fn add_marker(map: &Map, lat: f64, lng: f64, name: String) -> Marker;
     fn remove_marker(map: &Map, marker: Marker);
 }
 
@@ -47,7 +47,8 @@ pub(crate) async fn read_data(
         Message::Text(_) => panic!("we want bytes"),
         Message::Bytes(bin) => {
             let broadcast: Broadcast = postcard::from_bytes(&bin).unwrap();
-            let key = postcard::from_bytes(&broadcast.key).unwrap();
+            let key: Address = postcard::from_bytes(&broadcast.key).unwrap();
+            let name = format!("{} ({})", key.fox_name, key.time_slice);
             if let Some(old_marker) = markers.remove(&key) {
                 remove_marker(&map, old_marker);
             }
@@ -55,7 +56,7 @@ pub(crate) async fn read_data(
                 data.modify().remove(&key);
             } else {
                 let fox: Fox = postcard::from_bytes(&broadcast.value).unwrap();
-                if let Some(marker) = make_marker(&fox, &map) {
+                if let Some(marker) = make_marker(&fox, &map, name) {
                     markers.insert(key.clone(), marker);
                 }
                 data.modify().insert(key, fox);
@@ -67,10 +68,10 @@ pub(crate) async fn read_data(
     .unwrap();
 }
 
-fn make_marker(fox: &Fox, map: &Map) -> Option<Marker> {
+fn make_marker(fox: &Fox, map: &Map, name: String) -> Option<Marker> {
     make_value(&fox.latitude)
         .zip(make_value(&fox.longitude))
-        .map(|(lat, lng)| add_marker(map, lat, lng))
+        .map(|(lat, lng)| add_marker(map, lat, lng, name))
 }
 
 fn make_value(input: &str) -> Option<f64> {

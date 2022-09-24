@@ -22,7 +22,6 @@ body {
     padding: 8px;
 }
 
-
 #option_panel {
     flex-wrap: wrap;
 }
@@ -30,6 +29,10 @@ body {
 .field {
     display: flex;
     justify-content: end;
+}
+
+input[updated=false] {
+    background-color: aqua;
 }
 
 #map {

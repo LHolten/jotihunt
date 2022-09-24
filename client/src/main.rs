@@ -65,17 +65,22 @@ fn location_editor() {
                     iterable=old_values,
                     view=move|cx, (key, fox)| {
                         let (key2, fox2) = (key.clone(), fox.clone());
+                        let fox2 = create_ref(cx, fox2);
                         let latitude = create_signal(cx, fox.latitude);
                         let longitude = create_signal(cx, fox.longitude);
                         view!{cx,
                             div(class="field") {
                                 label{(key.fox_name.clone())}
-                                input(size=5, bind:value=latitude)
-                                input(size=5, bind:value=longitude)
+                                input(size=5, bind:value=latitude, updated={
+                                    latitude.get().as_ref()==&fox2.latitude
+                                })
+                                input(size=5, bind:value=longitude, updated={
+                                    longitude.get().as_ref()==&fox2.longitude
+                                })
                                 input(type="button", value="Update", on:click=move |_|{
                                     let edit = AtomicEdit{
                                         key: postcard::to_stdvec(&key2).unwrap(),
-                                        old: postcard::to_stdvec(&fox2).unwrap(),
+                                        old: postcard::to_stdvec(fox2).unwrap(),
                                         new: postcard::to_stdvec(&Fox{
                                             latitude: latitude.get().as_ref().clone(),
                                             longitude: longitude.get().as_ref().clone()
