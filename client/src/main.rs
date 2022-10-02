@@ -1,5 +1,8 @@
 use futures::{channel::mpsc, SinkExt, StreamExt};
-use gloo::{net::websocket::futures::WebSocket, utils::document};
+use gloo::{
+    net::websocket::futures::WebSocket,
+    utils::{document, window},
+};
 use jotihunt_client::update::AtomicEdit;
 use state::{Address, Fox, State};
 // use mk_geolocation::callback::Position;
@@ -36,7 +39,8 @@ fn location_editor() {
                 names
             });
 
-            let ws = WebSocket::open("ws://localhost:8090").unwrap();
+            let ws_address = format!("ws://{}:8090", window().location().hostname().unwrap());
+            let ws = WebSocket::open(&ws_address).unwrap();
             // let password = prompt("password", None).unwrap();
             let (write, read) = ws.split();
             let (queue_write, queue_read) = mpsc::unbounded();

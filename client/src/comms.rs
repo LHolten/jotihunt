@@ -12,14 +12,18 @@ use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(module = "/leaflet.js")]
 extern "C" {
-    type Map;
-
-    fn make_map() -> Map;
-
     type Marker;
 
-    fn add_marker(map: &Map, lat: f64, lng: f64, name: String) -> Marker;
-    fn remove_marker(map: &Map, marker: Marker);
+    fn add_marker(lat: f64, lng: f64, name: String) -> Marker;
+    #[wasm_bindgen(js_name = remove_layer)]
+    fn remove_marker(marker: Marker);
+
+    type Line;
+
+    fn new_line() -> Line;
+    fn add_line_marker(line: &Line, marker: &Marker) -> Line;
+    #[wasm_bindgen(js_name = remove_layer)]
+    fn remove_line(line: Line);
 }
 
 pub(crate) async fn write_data(
@@ -41,7 +45,7 @@ pub(crate) async fn read_data(
     data: &Signal<std::collections::BTreeMap<Address, Fox>>,
 ) {
     let mut markers = BTreeMap::new();
-    let map = make_map();
+    let mut lines = BTreeMap::new();
 
     read.try_for_each(|msg| match msg {
         Message::Text(_) => panic!("we want bytes"),
@@ -50,15 +54,26 @@ pub(crate) async fn read_data(
             let key: Address = postcard::from_bytes(&broadcast.key).unwrap();
             let name = format!("{} ({})", key.fox_name, key.time_slice);
             if let Some(old_marker) = markers.remove(&key) {
-                remove_marker(&map, old_marker);
+                remove_marker(old_marker);
+            }
+            if let Some(old_line) = lines.remove(&key.fox_name) {
+                remove_line(old_line)
             }
             if broadcast.value.is_empty() {
                 data.modify().remove(&key);
             } else {
                 let fox: Fox = postcard::from_bytes(&broadcast.value).unwrap();
-                if let Some(marker) = make_marker(&fox, &map, name) {
+                if let Some(marker) = make_marker(&fox, name) {
                     markers.insert(key.clone(), marker);
                 }
+                let line = new_line();
+                for (k, v) in &markers {
+                    if &k.fox_name == &key.fox_name {
+                        add_line_marker(&line, v);
+                    }
+                }
+                lines.insert(key.fox_name.clone(), line);
+
                 data.modify().insert(key, fox);
             }
             future::ok(())
@@ -68,10 +83,10 @@ pub(crate) async fn read_data(
     .unwrap();
 }
 
-fn make_marker(fox: &Fox, map: &Map, name: String) -> Option<Marker> {
+fn make_marker(fox: &Fox, name: String) -> Option<Marker> {
     make_value(&fox.latitude)
         .zip(make_value(&fox.longitude))
-        .map(|(lat, lng)| add_marker(map, lat, lng, name))
+        .map(|(lat, lng)| add_marker(lat, lng, name))
 }
 
 fn make_value(input: &str) -> Option<f64> {

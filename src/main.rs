@@ -17,7 +17,7 @@ fn main() {
         println!("{} items in db", db.scan_prefix([]).count());
 
         // Create the event loop and TCP listener we'll accept connections on.
-        let listener = TcpListener::bind(&"127.0.0.1:8090").await.unwrap();
+        let listener = TcpListener::bind(&"0.0.0.0:8090").await.unwrap();
 
         while let Ok((stream, _)) = listener.accept().await {
             tokio::spawn(accept_and_log(stream, db));
