@@ -2,9 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::state::{Address, Fox};
 use futures::{self, channel::mpsc, future, StreamExt, TryStreamExt};
-use gloo::{
-    net::websocket::{futures::WebSocket, Message},
-};
+use gloo::net::websocket::{futures::WebSocket, Message};
 use jotihunt_client::update::{AtomicEdit, Broadcast};
 use sycamore::reactive::Signal;
 use wasm_bindgen::prelude::*;
@@ -16,6 +14,7 @@ extern "C" {
     fn add_marker(lat: f64, lng: f64, name: String) -> Marker;
     #[wasm_bindgen(js_name = remove_layer)]
     fn remove_marker(marker: Marker);
+    fn set_marker_color(marker: &Marker, last: bool);
 
     type Line;
 
@@ -51,7 +50,7 @@ pub(crate) async fn read_data(
         Message::Bytes(bin) => {
             let broadcast: Broadcast = postcard::from_bytes(&bin).unwrap();
             let key: Address = postcard::from_bytes(&broadcast.key).unwrap();
-            let name = format!("{} ({})", key.fox_name, key.time_slice);
+            last_marker_color(&markers, &key.fox_name, false);
             if let Some(old_marker) = markers.remove(&key) {
                 remove_marker(old_marker);
             }
@@ -62,6 +61,7 @@ pub(crate) async fn read_data(
                 data.modify().remove(&key);
             } else {
                 let fox: Fox = postcard::from_bytes(&broadcast.value).unwrap();
+                let name = format!("{} ({})", key.fox_name, key.time_slice);
                 if let Some(marker) = make_marker(&fox, name) {
                     markers.insert(key.clone(), marker);
                 }
@@ -73,13 +73,24 @@ pub(crate) async fn read_data(
                 }
                 lines.insert(key.fox_name.clone(), line);
 
-                data.modify().insert(key, fox);
+                data.modify().insert(key.clone(), fox);
             }
+            last_marker_color(&markers, &key.fox_name, true);
             future::ok(())
         }
     })
     .await
     .unwrap();
+}
+
+fn last_marker_color<'a>(markers: &'a BTreeMap<Address, Marker>, fox_name: &str, last: bool) {
+    if let Some((a, m)) = markers
+        .into_iter()
+        .rev()
+        .find(|(a, _)| a.fox_name == fox_name)
+    {
+        set_marker_color(m, last)
+    }
 }
 
 fn make_marker(fox: &Fox, name: String) -> Option<Marker> {

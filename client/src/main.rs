@@ -96,8 +96,8 @@ async fn location_editor() {
                                         key: postcard::to_stdvec(&key2).unwrap(),
                                         old: postcard::to_stdvec(fox2).unwrap(),
                                         new: postcard::to_stdvec(&Fox{
-                                            latitude: latitude.get().as_ref().clone(),
-                                            longitude: longitude.get().as_ref().clone()
+                                            latitude: latitude.get().as_ref().trim().to_string(),
+                                            longitude: longitude.get().as_ref().trim().to_string()
                                         }).unwrap(),
                                     };
                                     spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
