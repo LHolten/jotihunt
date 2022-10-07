@@ -1,31 +1,66 @@
-use std::ops::{Deref, Not};
+use std::{
+    env,
+    ops::{Deref, Not},
+};
 
-use anyhow::Context;
 use async_stream::stream;
+use axum::{
+    extract::{
+        ws::{Message, WebSocket},
+        Path, WebSocketUpgrade,
+    },
+    response::IntoResponse,
+    routing::get,
+    Router,
+};
 use futures_util::{future, pin_mut, StreamExt, TryStreamExt};
+use hyper::StatusCode;
 use jotihunt_client::update::{AtomicEdit, Broadcast};
 use sled::{Db, Event};
-use tokio::{
-    net::{TcpListener, TcpStream},
-    runtime::Runtime,
-};
-use tokio_tungstenite::tungstenite::Message;
 
-fn main() {
-    Runtime::new().unwrap().block_on(async {
-        let db = Box::leak(Box::new(sled::open("joti.db").unwrap()));
-        println!("{} items in db", db.scan_prefix([]).count());
+use tower::{make::Shared, ServiceBuilder};
+use tower_http::{auth::RequireAuthorizationLayer, cors::CorsLayer};
+use uuid::Uuid;
 
-        // Create the event loop and TCP listener we'll accept connections on.
-        let listener = TcpListener::bind(&"0.0.0.0:8090").await.unwrap();
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let addr: std::net::SocketAddr = "0.0.0.0:8090".parse()?;
 
-        while let Ok((stream, _)) = listener.accept().await {
-            tokio::spawn(accept_and_log(stream, db));
-        }
-    })
+    let args: Vec<String> = env::args().collect();
+    let password = &*Box::leak(Box::new(args[1].clone()));
+    println!("password is: {password}");
+    let secret = Uuid::new_v4();
+
+    let db = &*Box::leak(Box::new(sled::open("joti.db").unwrap()));
+    println!("{} items in db", db.scan_prefix([]).count());
+
+    let router = Router::new()
+        .route(
+            "/secret",
+            ServiceBuilder::new()
+                .layer(CorsLayer::very_permissive().allow_credentials(true))
+                .layer(RequireAuthorizationLayer::basic("", password))
+                .service(get(move || async move { secret.to_string() })),
+        )
+        .route(
+            "/:key",
+            ServiceBuilder::new().service(get(
+                move |req: WebSocketUpgrade, Path(key): Path<Uuid>| async move {
+                    if key != secret {
+                        return StatusCode::UNAUTHORIZED.into_response();
+                    }
+                    req.on_upgrade(|ws| accept_and_log(ws, db))
+                },
+            )),
+        );
+
+    hyper::Server::bind(&addr)
+        .serve(Shared::new(router))
+        .await?;
+    Ok(())
 }
 
-async fn accept_and_log(stream: TcpStream, db: &Db) {
+async fn accept_and_log(stream: WebSocket, db: &Db) {
     match accept_connection(stream, db).await {
         Ok(()) => {}
         Err(e) => {
@@ -34,13 +69,10 @@ async fn accept_and_log(stream: TcpStream, db: &Db) {
     }
 }
 
-async fn accept_connection(stream: TcpStream, db: &Db) -> anyhow::Result<()> {
-    let ws_stream = tokio_tungstenite::accept_async(stream)
-        .await
-        .context("Error during the websocket handshake occurred")?;
+async fn accept_connection(stream: WebSocket, db: &Db) -> anyhow::Result<()> {
     println!("client connected");
 
-    let (write, read) = ws_stream.split();
+    let (write, read) = stream.split();
     let receive_edits = read
         .map_err(anyhow::Error::from)
         .try_filter_map(|msg| match msg {

@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use crate::state::{Address, Fox};
 use futures::{self, channel::mpsc, future, StreamExt, TryStreamExt};
 use gloo::{
-    console::log,
     net::websocket::{futures::WebSocket, Message},
 };
 use jotihunt_client::update::{AtomicEdit, Broadcast};

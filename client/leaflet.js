@@ -32,3 +32,7 @@ export function new_line() {
 export function add_line_marker(line, marker) {
     line.addLatLng(marker.getLatLng())
 }
+
+export function set_marker_color(marker) {
+
+}

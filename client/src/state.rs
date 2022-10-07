@@ -24,24 +24,3 @@ pub struct Fox {
     pub latitude: String,
     pub longitude: String,
 }
-
-// let time_slice = TimeSlice {
-//     foxes: vec![(
-//         "Alpha".to_owned(),
-//         Fox {
-//             latitude: "-".to_owned(),
-//             longitude: "-".to_owned(),
-//         },
-//     )]
-//     .into_iter()
-//     .collect(),
-// };
-// let data = Data {
-//     time_slices: vec![
-//         ("9:00".to_owned(), time_slice),
-//         ("10:00".to_owned(), Default::default()),
-//     ]
-//     .into_iter()
-//     .collect(),
-//     current_time: "9:00".to_owned(),
-// };

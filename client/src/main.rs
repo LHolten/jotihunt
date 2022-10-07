@@ -1,18 +1,28 @@
 use futures::{channel::mpsc, SinkExt, StreamExt};
 use gloo::{
-    net::websocket::futures::WebSocket,
+    net::{http::Request, websocket::futures::WebSocket},
     utils::{document, window},
 };
 use jotihunt_client::update::AtomicEdit;
 use state::{Address, Fox, State};
-// use mk_geolocation::callback::Position;
-use sycamore::{futures::spawn_local_scoped, prelude::*};
+use sycamore::{
+    futures::{spawn_local, spawn_local_scoped},
+    prelude::*,
+};
 
 mod comms;
 mod state;
 mod update;
 
-fn location_editor() {
+async fn location_editor() {
+    let hostname = window().location().hostname().unwrap();
+    let pass_address = format!("http://{}:8090/secret", hostname);
+    let res = Request::get(&pass_address)
+        .credentials(web_sys::RequestCredentials::Include)
+        .send()
+        .await;
+    let key = res.unwrap().text().await.unwrap();
+
     let coord_editor = document()
         .get_element_by_id("coord_editor")
         .expect("there is a add_point button");
@@ -39,9 +49,9 @@ fn location_editor() {
                 names
             });
 
-            let ws_address = format!("ws://{}:8090", window().location().hostname().unwrap());
+            let ws_address = format!("ws://{}:8090/{key}", hostname);
             let ws = WebSocket::open(&ws_address).unwrap();
-            // let password = prompt("password", None).unwrap();
+
             let (write, read) = ws.split();
             let (queue_write, queue_read) = mpsc::unbounded();
 
@@ -132,21 +142,7 @@ fn location_editor() {
 }
 
 fn main() {
-    // let pos = Position::new(move |p| {
-    //     add_marker(map, p.coords().latitude(), p.coords().longitude());
-    // });
-    // forget(pos);
+    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 
-    // let button = document()
-    //     .get_element_by_id("add_point")
-    //     .expect("there is a add_point button");
-
-    // let on_click = EventListener::new(&button, "click", move |_event| {
-    //     // add_marker(map, 51.5, -0.09);
-    //     let marker = add_marker(map, 199735.0, 307365.0);
-    //     // remove_marker(map, marker);
-    // });
-    // on_click.forget();
-
-    location_editor();
+    spawn_local(location_editor());
 }
