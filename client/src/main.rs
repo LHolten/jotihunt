@@ -113,7 +113,7 @@ async fn location_editor() {
                         let edit = AtomicEdit{
                             key: postcard::to_stdvec(&Address{
                                 time_slice: current_time.get().as_ref().clone(),
-                                fox_name: new_fox.get().as_ref().clone()
+                                fox_name: new_fox.get().as_ref().trim().to_string()
                             }).unwrap(),
                             old: vec![],
                             new: postcard::to_stdvec(&Fox::default()).unwrap()
@@ -123,7 +123,7 @@ async fn location_editor() {
                     input(type="button", value="Del", on:click=move |_|{
                         let address = Address{
                             time_slice: current_time.get().as_ref().clone(),
-                            fox_name: new_fox.get().as_ref().clone()
+                            fox_name: new_fox.get().as_ref().trim().to_string()
                         };
                         if let Some(old_fox) = data.get().get(&address) {
                             let edit = AtomicEdit{
