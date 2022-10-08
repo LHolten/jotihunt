@@ -33,7 +33,7 @@ jobs:
         uses: jetli/trunk-action@v0.1.0
 
       - name: Build site using trunk
-        run: trunk build --release --public-url jotihunt
+        run: trunk build --release
         working-directory: client
           
       - name: Upload GitHub Pages artifact

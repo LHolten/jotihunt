@@ -1,6 +1,7 @@
 use std::{
-    env,
+    net::SocketAddr,
     ops::{Deref, Not},
+    time::Duration,
 };
 
 use async_stream::stream;
@@ -13,22 +14,34 @@ use axum::{
     routing::get,
     Router,
 };
+use axum_server::tls_rustls::RustlsConfig;
+use clap::Parser;
 use futures_util::{future, pin_mut, StreamExt, TryStreamExt};
 use hyper::StatusCode;
 use jotihunt_client::update::{AtomicEdit, Broadcast};
 use sled::{Db, Event};
 
+use tokio::time::sleep;
 use tower::{make::Shared, ServiceBuilder};
 use tower_http::{auth::RequireAuthorizationLayer, cors::CorsLayer};
 use uuid::Uuid;
 
+#[derive(Parser)]
+struct Args {
+    /// Name of the server certificate to load for TLS
+    #[arg(short, long)]
+    domain: Option<String>,
+
+    /// The password to use for the authentication
+    #[arg(short, long)]
+    password: String,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let addr: std::net::SocketAddr = "0.0.0.0:8090".parse()?;
+    let args = &*Box::leak(Box::new(Args::parse()));
 
-    let args: Vec<String> = env::args().collect();
-    let password = &*Box::leak(Box::new(args[1].clone()));
-    println!("password is: {password}");
+    println!("password is: {}", args.password);
     let secret = Uuid::new_v4();
 
     let db = &*Box::leak(Box::new(sled::open("joti.db").unwrap()));
@@ -39,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
             "/secret",
             ServiceBuilder::new()
                 .layer(CorsLayer::very_permissive().allow_credentials(true))
-                .layer(RequireAuthorizationLayer::basic("", password))
+                .layer(RequireAuthorizationLayer::basic("", &args.password))
                 .service(get(move || async move { secret.to_string() })),
         )
         .route(
@@ -54,9 +67,24 @@ async fn main() -> anyhow::Result<()> {
             )),
         );
 
-    hyper::Server::bind(&addr)
-        .serve(Shared::new(router))
-        .await?;
+    let addr = SocketAddr::from(([0, 0, 0, 0], 4848));
+
+    if let Some(domain) = &args.domain {
+        let config = RustlsConfig::from_pem_file(
+            format!("/etc/letsencrypt/live/{domain}/fullchain.pem"),
+            format!("/etc/letsencrypt/live/{domain}/privkey.pem"),
+        )
+        .await
+        .unwrap();
+
+        tokio::spawn(reload(config.clone(), domain));
+        axum_server::bind_rustls(addr, config)
+            .serve(Shared::new(router))
+            .await?;
+    } else {
+        axum_server::bind(addr).serve(Shared::new(router)).await?;
+    }
+
     Ok(())
 }
 
@@ -121,4 +149,19 @@ async fn accept_connection(stream: WebSocket, db: &Db) -> anyhow::Result<()> {
     future::select(receive_edits, send_edits).await;
 
     Ok(())
+}
+
+async fn reload(config: RustlsConfig, domain: &str) {
+    loop {
+        sleep(Duration::from_secs(100_000)).await;
+        println!("reloading rustls configuration");
+
+        config
+            .reload_from_pem_file(
+                format!("/etc/letsencrypt/live/{domain}/fullchain.pem"),
+                format!("/etc/letsencrypt/live/{domain}/privkey.pem"),
+            )
+            .await
+            .unwrap();
+    }
 }

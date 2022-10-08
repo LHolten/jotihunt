@@ -18,7 +18,9 @@ sled = "0.34.7"
 uuid = { version = "1.1.2", features = ["serde"], default-features = false }
 
 axum = { version = "0.5.16", features = ["ws"], default-features = false }
-hyper = { version = "0.14", features = ["http1", "tcp"], default-features = false }
+hyper = { version = "0.14", features = ["http1", "http2", "tcp"], default-features = false }
 tokio = { version = "1.21.1", features = ["rt-multi-thread", "macros"], default-features = false }
 tower = { version = "0.4.13", default-features = false }
-tower-http = {version = "0.3.4", features = ["full"], default-features = false }
+tower-http = { version = "0.3.4", features = ["full"], default-features = false }
+axum-server = { version = "0.4.2", features = ["tls-rustls"] }
+clap = { version = "4.0.10", features = ["derive"] }
