@@ -84,7 +84,7 @@ pub(crate) async fn read_data(
 }
 
 fn last_marker_color<'a>(markers: &'a BTreeMap<Address, Marker>, fox_name: &str, last: bool) {
-    if let Some((a, m)) = markers
+    if let Some((_a, m)) = markers
         .into_iter()
         .rev()
         .find(|(a, _)| a.fox_name == fox_name)
