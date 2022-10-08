@@ -1,7 +1,7 @@
 use futures::{channel::mpsc, SinkExt, StreamExt};
 use gloo::{
     net::{http::Request, websocket::futures::WebSocket},
-    utils::{document, window},
+    utils::document,
 };
 use jotihunt_client::update::AtomicEdit;
 use state::{Address, Fox, State};
@@ -15,8 +15,8 @@ mod state;
 mod update;
 
 async fn location_editor() {
-    let hostname = window().location().hostname().unwrap();
-    let pass_address = format!("http://{}:8090/secret", hostname);
+    let hostname = "server.lucasholten.com:4848";
+    let pass_address = format!("https://{}/secret", hostname);
     let res = Request::get(&pass_address)
         .credentials(web_sys::RequestCredentials::Include)
         .send()
@@ -49,7 +49,7 @@ async fn location_editor() {
                 names
             });
 
-            let ws_address = format!("ws://{}:8090/{key}", hostname);
+            let ws_address = format!("wss://{}/{key}", hostname);
             let ws = WebSocket::open(&ws_address).unwrap();
 
             let (write, read) = ws.split();
