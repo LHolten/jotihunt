@@ -60,20 +60,33 @@ async fn location_editor() {
 
             let queue_write = create_ref(cx, queue_write);
             let new_fox = create_signal(cx, "".to_owned());
+            let advanced = create_signal(cx, false);
+
+            let time_stamps = move || view!{cx,
+                option(value=current_time.get(), selected=true, hidden=true){(current_time.get())}
+                Keyed(
+                    iterable=slice_names,
+                    view=move |cx, key| {
+                        let key = create_ref(cx, key);
+                        view!{cx, option(value=*key){(*key)}}
+                    },
+                    key=|key| key.clone(),
+                )
+            };
 
             view! {cx,
                 div(class="field") {
                     label(for="time_stamp"){"Time stamp:"}
-                    input(id="time_stamp", bind:value=current_time, list="time_stamps", size=10)
-                }
-                datalist(id="time_stamps"){
-                    Keyed(
-                        iterable=slice_names,
-                        view=move |cx, key| {
-                            view!{cx, option(value=key)}
-                        },
-                        key=|key| key.clone(),
-                    )
+                    (if *advanced.get() {
+                        view! { cx,
+                            input(id="time_stamp", bind:value=current_time, list="time_stamps", size=10){}
+                            datalist(id="time_stamps"){(time_stamps())}
+                        }
+                    } else {
+                        view! { cx,
+                            select(id="time_stamp", bind:value=current_time) {(time_stamps())}
+                        }
+                    })
                 }
                 Keyed(
                     iterable=old_values,
@@ -107,33 +120,43 @@ async fn location_editor() {
                     },
                     key=|(key, fox)| (key.clone(), fox.clone())
                 )
-                div(class="field"){
-                    input(size=10, bind:value=new_fox)
-                    input(type="button", value="Add", on:click=move |_|{
-                        let edit = AtomicEdit{
-                            key: postcard::to_stdvec(&Address{
-                                time_slice: current_time.get().as_ref().clone(),
-                                fox_name: new_fox.get().as_ref().trim().to_string()
-                            }).unwrap(),
-                            old: vec![],
-                            new: postcard::to_stdvec(&Fox::default()).unwrap()
-                        };
-                        spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
-                    })
-                    input(type="button", value="Del", on:click=move |_|{
-                        let address = Address{
-                            time_slice: current_time.get().as_ref().clone(),
-                            fox_name: new_fox.get().as_ref().trim().to_string()
-                        };
-                        if let Some(old_fox) = data.get().get(&address) {
-                            let edit = AtomicEdit{
-                                key: postcard::to_stdvec(&address).unwrap(),
-                                old: postcard::to_stdvec(old_fox).unwrap(),
-                                new: vec![]
-                            };
-                            spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
+                (if *advanced.get() {
+                    view!{cx,
+                        div(class="field"){
+                            input(size=10, bind:value=new_fox)
+                            input(type="button", value="Add", on:click=move |_|{
+                                let edit = AtomicEdit{
+                                    key: postcard::to_stdvec(&Address{
+                                        time_slice: current_time.get().as_ref().clone(),
+                                        fox_name: new_fox.get().as_ref().trim().to_string()
+                                    }).unwrap(),
+                                    old: vec![],
+                                    new: postcard::to_stdvec(&Fox::default()).unwrap()
+                                };
+                                spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
+                            })
+                            input(type="button", value="Del", on:click=move |_|{
+                                let address = Address{
+                                    time_slice: current_time.get().as_ref().clone(),
+                                    fox_name: new_fox.get().as_ref().trim().to_string()
+                                };
+                                if let Some(old_fox) = data.get().get(&address) {
+                                    let edit = AtomicEdit{
+                                        key: postcard::to_stdvec(&address).unwrap(),
+                                        old: postcard::to_stdvec(old_fox).unwrap(),
+                                        new: vec![]
+                                    };
+                                    spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
+                                }
+                            })
                         }
-                    })
+                    }
+                } else {
+                    view!(cx,)
+                })
+                div(class="field"){
+                    label(for="advanced"){"Advanced:"}
+                    input(id="advanced", type="checkbox", bind:checked=advanced)
                 }
             }
         },
