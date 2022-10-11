@@ -1,2 +1,6 @@
-/target
-/joti.db
+target/
+dist/
+joti.db/
+/shared/Cargo.lock
+report.json
+report.html

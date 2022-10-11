@@ -3,7 +3,7 @@ use gloo::{
     net::{http::Request, websocket::futures::WebSocket},
     utils::document,
 };
-use jotihunt_client::update::AtomicEdit;
+use jotihunt_shared::AtomicEdit;
 use state::{Address, Fox, State};
 use sycamore::{
     futures::{spawn_local, spawn_local_scoped},
@@ -12,7 +12,6 @@ use sycamore::{
 
 mod comms;
 mod state;
-mod update;
 
 async fn location_editor() {
     let hostname = "server.lucasholten.com:4848";

@@ -380,11 +380,19 @@ dependencies = [
  "console_error_panic_hook",
  "futures",
  "gloo",
+ "jotihunt-shared",
  "postcard",
  "serde",
  "sycamore",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "jotihunt-shared"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

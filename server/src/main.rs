@@ -18,7 +18,7 @@ use axum_server::tls_rustls::RustlsConfig;
 use clap::Parser;
 use futures_util::{future, pin_mut, StreamExt, TryStreamExt};
 use hyper::StatusCode;
-use jotihunt_client::update::{AtomicEdit, Broadcast};
+use jotihunt_shared::{AtomicEdit, Broadcast};
 use sled::{Db, Event};
 
 use tokio::time::sleep;

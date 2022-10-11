@@ -7,14 +7,12 @@ edition = "2021"
 lto = true
 opt-level = 's'
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+jotihunt-shared = { path = "../shared" }
 wasm-bindgen = { version = "0.2.83", default-features = false }
 web-sys = { version = "0.3.60", default-features = false }
 sycamore = { version = "0.8.1", features = ["suspense", "web"], default-features = false }
 gloo = "0.8.0"
-# mk-geolocation = {git = "https://gitlab.com/mkroehnert/mk-geolocation"}
 serde = { version = "1.0.144", default-features = false }
 postcard = { version = "1.0.2", features = ["use-std"], default-features= false }
 futures = { version = "0.3.24", default-features = false }

@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::state::{Address, Fox};
 use futures::{self, channel::mpsc, future, StreamExt, TryStreamExt};
 use gloo::net::websocket::{futures::WebSocket, Message};
-use jotihunt_client::update::{AtomicEdit, Broadcast};
+use jotihunt_shared::{AtomicEdit, Broadcast};
 use sycamore::reactive::Signal;
 use wasm_bindgen::prelude::*;
 
