@@ -4,6 +4,7 @@ use gloo::{
     utils::document,
 };
 use jotihunt_shared::AtomicEdit;
+use options::option_panel;
 use state::{Address, Fox, State};
 use sycamore::{
     futures::{spawn_local, spawn_local_scoped},
@@ -11,17 +12,15 @@ use sycamore::{
 };
 
 mod comms;
+mod leaflet;
+mod options;
 mod state;
 
-async fn location_editor() {
-    let hostname = "server.lucasholten.com:4848";
-    let pass_address = format!("https://{}/secret", hostname);
-    let res = Request::get(&pass_address)
-        .credentials(web_sys::RequestCredentials::Include)
-        .send()
-        .await;
-    let key = res.unwrap().text().await.unwrap();
+const HOSTNAME: &str = "server.lucasholten.com:4848";
+const WS_PROTOCOL: &str = "wss";
+const HTTP_PROTOCOL: &str = "https";
 
+fn location_editor(key: &'static str) {
     let coord_editor = document()
         .get_element_by_id("coord_editor")
         .expect("there is a add_point button");
@@ -48,7 +47,7 @@ async fn location_editor() {
                 names
             });
 
-            let ws_address = format!("wss://{}/{key}", hostname);
+            let ws_address = format!("{WS_PROTOCOL}://{HOSTNAME}/{key}");
             let ws = WebSocket::open(&ws_address).unwrap();
 
             let (write, read) = ws.split();
@@ -61,16 +60,18 @@ async fn location_editor() {
             let new_fox = create_signal(cx, "".to_owned());
             let advanced = create_signal(cx, false);
 
-            let time_stamps = move || view!{cx,
-                option(value=current_time.get(), selected=true, hidden=true){(current_time.get())}
-                Keyed(
-                    iterable=slice_names,
-                    view=move |cx, key| {
-                        let key = create_ref(cx, key);
-                        view!{cx, option(value=*key){(*key)}}
-                    },
-                    key=|key| key.clone(),
-                )
+            let time_stamps = move || {
+                view! {cx,
+                    option(value=current_time.get(), selected=true, hidden=true){(current_time.get())}
+                    Keyed(
+                        iterable=slice_names,
+                        view=move |cx, key| {
+                            let key = create_ref(cx, key);
+                            view!{cx, option(value=*key){(*key)}}
+                        },
+                        key=|key| key.clone(),
+                    )
+                }
             };
 
             view! {cx,
@@ -166,5 +167,16 @@ async fn location_editor() {
 fn main() {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 
-    spawn_local(location_editor());
+    spawn_local(async {
+        let pass_address = format!("{HTTP_PROTOCOL}://{HOSTNAME}/secret");
+        let res = Request::get(&pass_address)
+            .credentials(web_sys::RequestCredentials::Include)
+            .send()
+            .await;
+        let key = res.unwrap().text().await.unwrap();
+        let key = Box::leak(key.into_boxed_str());
+
+        location_editor(key);
+        option_panel(key);
+    });
 }

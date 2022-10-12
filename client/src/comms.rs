@@ -1,28 +1,13 @@
 use std::collections::BTreeMap;
 
-use crate::state::{Address, Fox};
+use crate::{
+    leaflet::{Line, Marker},
+    state::{Address, Fox},
+};
 use futures::{self, channel::mpsc, future, StreamExt, TryStreamExt};
 use gloo::net::websocket::{futures::WebSocket, Message};
 use jotihunt_shared::{AtomicEdit, Broadcast};
 use sycamore::reactive::Signal;
-use wasm_bindgen::prelude::*;
-
-#[wasm_bindgen(module = "/leaflet.js")]
-extern "C" {
-    type Marker;
-
-    fn add_marker(lat: f64, lng: f64, name: String) -> Marker;
-    #[wasm_bindgen(js_name = remove_layer)]
-    fn remove_marker(marker: Marker);
-    fn set_marker_color(marker: &Marker, last: bool);
-
-    type Line;
-
-    fn new_line() -> Line;
-    fn add_line_marker(line: &Line, marker: &Marker) -> Line;
-    #[wasm_bindgen(js_name = remove_layer)]
-    fn remove_line(line: Line);
-}
 
 pub(crate) async fn write_data(
     queue_read: mpsc::UnboundedReceiver<AtomicEdit>,
@@ -51,12 +36,8 @@ pub(crate) async fn read_data(
             let broadcast: Broadcast = postcard::from_bytes(&bin).unwrap();
             let key: Address = postcard::from_bytes(&broadcast.key).unwrap();
             last_marker_color(&markers, &key.fox_name, false);
-            if let Some(old_marker) = markers.remove(&key) {
-                remove_marker(old_marker);
-            }
-            if let Some(old_line) = lines.remove(&key.fox_name) {
-                remove_line(old_line)
-            }
+            markers.remove(&key);
+
             if broadcast.value.is_empty() {
                 data.modify().remove(&key);
             } else {
@@ -65,16 +46,17 @@ pub(crate) async fn read_data(
                 if let Some(marker) = make_marker(&fox, name) {
                     markers.insert(key.clone(), marker);
                 }
-                let line = new_line();
-                for (k, v) in &markers {
-                    if &k.fox_name == &key.fox_name {
-                        add_line_marker(&line, v);
-                    }
-                }
-                lines.insert(key.fox_name.clone(), line);
-
                 data.modify().insert(key.clone(), fox);
             }
+
+            let line = Line::new();
+            for (k, v) in &markers {
+                if &k.fox_name == &key.fox_name {
+                    line.push(v);
+                }
+            }
+            lines.insert(key.fox_name.clone(), line);
+
             last_marker_color(&markers, &key.fox_name, true);
             future::ok(())
         }
@@ -89,14 +71,14 @@ fn last_marker_color<'a>(markers: &'a BTreeMap<Address, Marker>, fox_name: &str,
         .rev()
         .find(|(a, _)| a.fox_name == fox_name)
     {
-        set_marker_color(m, last)
+        m.set_color(last)
     }
 }
 
 fn make_marker(fox: &Fox, name: String) -> Option<Marker> {
     make_value(&fox.latitude)
         .zip(make_value(&fox.longitude))
-        .map(|(lat, lng)| add_marker(lat, lng, name))
+        .map(|(lat, lng)| Marker::new(lat, lng, name))
 }
 
 fn make_value(input: &str) -> Option<f64> {
