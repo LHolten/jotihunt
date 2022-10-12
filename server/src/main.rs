@@ -8,20 +8,23 @@ use async_stream::stream;
 use axum::{
     extract::{
         ws::{Message, WebSocket},
-        Path, WebSocketUpgrade,
+        Path, Query, WebSocketUpgrade,
     },
     response::IntoResponse,
-    routing::get,
+    routing::{any, get},
     Router,
 };
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Parser;
 use futures_util::{future, pin_mut, StreamExt, TryStreamExt};
 use hyper::StatusCode;
-use jotihunt_shared::{AtomicEdit, Broadcast};
+use jotihunt_shared::{AtomicEdit, Broadcast, Traccar};
 use sled::{Db, Event};
 
-use tokio::time::sleep;
+use tokio::{
+    sync::broadcast::{self, error::RecvError},
+    time::sleep,
+};
 use tower::{make::Shared, ServiceBuilder};
 use tower_http::{auth::RequireAuthorizationLayer, cors::CorsLayer};
 use uuid::Uuid;
@@ -39,13 +42,15 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let args = &*Box::leak(Box::new(Args::parse()));
+    let args = leak(Args::parse());
 
     println!("password is: {}", args.password);
     let secret = Uuid::new_v4();
 
-    let db = &*Box::leak(Box::new(sled::open("joti.db").unwrap()));
+    let db = leak(sled::open("joti.db").unwrap());
     println!("{} items in db", db.scan_prefix([]).count());
+
+    let live = leak(broadcast::channel(16).0);
 
     let router = Router::new()
         .route(
@@ -57,14 +62,32 @@ async fn main() -> anyhow::Result<()> {
         )
         .route(
             "/:key",
-            ServiceBuilder::new().service(get(
+            get(
                 move |req: WebSocketUpgrade, Path(key): Path<Uuid>| async move {
                     if key != secret {
                         return StatusCode::UNAUTHORIZED.into_response();
                     }
                     req.on_upgrade(|ws| accept_and_log(ws, db))
                 },
-            )),
+            ),
+        )
+        .route(
+            "/traccar",
+            any(|traccar: Query<Traccar>| async {
+                let _ = live.send(traccar.0);
+                StatusCode::OK.into_response()
+            }),
+        )
+        .route(
+            "/live/:key",
+            get(
+                move |req: WebSocketUpgrade, Path(key): Path<Uuid>| async move {
+                    if key != secret {
+                        return StatusCode::UNAUTHORIZED.into_response();
+                    }
+                    req.on_upgrade(|ws| live_ws(ws, live.subscribe()))
+                },
+            ),
         );
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 4848));
@@ -164,4 +187,25 @@ async fn reload(config: RustlsConfig, domain: &str) {
             .await
             .unwrap();
     }
+}
+
+type LiveReceiver = broadcast::Receiver<Traccar>;
+
+async fn live_ws(mut stream: WebSocket, mut live: LiveReceiver) {
+    loop {
+        match live.recv().await {
+            Ok(traccar) => {
+                let bin = postcard::to_stdvec(&traccar).unwrap();
+                let Ok(()) = stream.send(Message::Binary(bin)).await else {
+                    break;
+                };
+            }
+            Err(RecvError::Closed) => break,
+            Err(RecvError::Lagged(_)) => continue,
+        }
+    }
+}
+
+fn leak<T>(val: T) -> &'static T {
+    &*Box::leak(Box::new(val))
 }

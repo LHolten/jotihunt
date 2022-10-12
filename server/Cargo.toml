@@ -10,13 +10,14 @@ anyhow = "1.0.65"
 futures-util = { version = "0.3.24", default-features = false }
 async-stream = "0.3.3"
 jotihunt-shared = { path = "../shared" }
+serde = { version = "1.0.144", features = ["derive"] }
 postcard = { version = "1.0.2", features = ["use-std"], default-features = false }
 sled = { version = "0.34.7" }
 uuid = { version = "1.1.2", features = ["serde"], default-features = false }
 
-axum = { version = "0.5.16", features = ["ws"], default-features = false }
+axum = { version = "0.5.16", features = ["ws", "query"], default-features = false }
 hyper = { version = "0.14", features = ["http1", "http2", "tcp"], default-features = false }
-tokio = { version = "1.21.1", features = ["rt-multi-thread"], default-features = false }
+tokio = { version = "1.21.1", features = ["rt-multi-thread", "sync"], default-features = false }
 tower = { version = "0.4.13", default-features = false }
 tower-http = { version = "0.3.4", features = ["cors", "request-id", "auth"], default-features = false }
 axum-server = { version = "0.4.2", features = ["tls-rustls"], default-features = false }

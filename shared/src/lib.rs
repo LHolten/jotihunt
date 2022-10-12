@@ -12,3 +12,10 @@ pub struct Broadcast {
     pub key: Vec<u8>,
     pub value: Vec<u8>,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Traccar {
+    pub id: String,
+    pub lat: String,
+    pub lon: String,
+}
