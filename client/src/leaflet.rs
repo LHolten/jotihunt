@@ -7,7 +7,7 @@ extern "C" {
     fn add_marker(lat: f64, lng: f64, name: String, convert: bool) -> JsMarker;
     #[wasm_bindgen(js_name = remove_layer)]
     fn remove_marker(marker: &JsMarker);
-    fn set_marker_color(marker: &JsMarker, last: bool);
+    fn set_marker_color(marker: &JsMarker, color: &str);
 
     type JsLine;
 
@@ -23,8 +23,8 @@ impl Marker {
     pub fn new(lat: f64, lng: f64, name: String, convert: bool) -> Self {
         Self(add_marker(lat, lng, name, convert))
     }
-    pub fn set_color(&self, last: bool) {
-        set_marker_color(&self.0, last)
+    pub fn set_color(&self, color: &str) {
+        set_marker_color(&self.0, color)
     }
 }
 

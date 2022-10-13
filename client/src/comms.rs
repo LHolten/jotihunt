@@ -35,7 +35,7 @@ pub(crate) async fn read_data(
         Message::Bytes(bin) => {
             let broadcast: Broadcast = postcard::from_bytes(&bin).unwrap();
             let key: Address = postcard::from_bytes(&broadcast.key).unwrap();
-            last_marker_color(&markers, &key.fox_name, false);
+            last_marker_color(&markers, &key.fox_name, "green");
             markers.remove(&key);
 
             if broadcast.value.is_empty() {
@@ -44,6 +44,7 @@ pub(crate) async fn read_data(
                 let fox: Fox = postcard::from_bytes(&broadcast.value).unwrap();
                 let name = format!("{} ({})", key.fox_name, key.time_slice);
                 if let Some(marker) = make_marker(&fox, name) {
+                    marker.set_color("green");
                     markers.insert(key.clone(), marker);
                 }
                 data.modify().insert(key.clone(), fox);
@@ -57,7 +58,7 @@ pub(crate) async fn read_data(
             }
             lines.insert(key.fox_name.clone(), line);
 
-            last_marker_color(&markers, &key.fox_name, true);
+            last_marker_color(&markers, &key.fox_name, "red");
             future::ok(())
         }
     })
@@ -65,13 +66,13 @@ pub(crate) async fn read_data(
     .unwrap();
 }
 
-fn last_marker_color<'a>(markers: &'a BTreeMap<Address, Marker>, fox_name: &str, last: bool) {
+fn last_marker_color<'a>(markers: &'a BTreeMap<Address, Marker>, fox_name: &str, color: &str) {
     if let Some((_a, m)) = markers
         .into_iter()
         .rev()
         .find(|(a, _)| a.fox_name == fox_name)
     {
-        m.set_color(last)
+        m.set_color(color)
     }
 }
 

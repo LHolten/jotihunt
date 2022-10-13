@@ -56,6 +56,7 @@ async fn read_live(ws: WebSocket) {
         let Some(marker) = make_marker(&live_loc, traccar.id.clone()) else {
             return ready(()).boxed_local();
         };
+        marker.set_color("violet");
         console_dbg!("placed marker");
         let (mut send, receive) = oneshot::channel::<()>();
         live_data.insert(traccar.id, receive);

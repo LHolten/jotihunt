@@ -51,7 +51,6 @@ export function add_marker(lat, lng, name, convert) {
         .bindTooltip(name)
         .bindPopup(coord.toString())
         .addTo(map);
-    set_marker_color(marker, false);
     return marker;
 }
 
@@ -67,12 +66,7 @@ export function add_line_marker(line, marker) {
     line.addLatLng(marker.getLatLng())
 }
 
-export function set_marker_color(marker, last) {
-    if (last) {
-        let redIcon = make_icon(true, "red");
-        marker.setIcon(redIcon);
-    } else {
-        let greenIcon = make_icon(true, "green");
-        marker.setIcon(greenIcon);
-    }
+export function set_marker_color(marker, color) {
+    let icon = make_icon(true, color);
+    marker.setIcon(icon);
 }
