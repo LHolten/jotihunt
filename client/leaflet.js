@@ -15,6 +15,16 @@ function make_icon(large, color) {
     });
 }
 
+let color_map = {
+    "Alpha": "violet",
+    "Bravo": "gold",
+    "Charlie": "red",
+    "Delta": "blue",
+    "Echo": "green",
+    "Foxtrot": "black",
+    null: "grey"
+}
+
 function make_map() {
     let map = L.map('map', {
         center: [52.1139, 5.8402],
@@ -26,12 +36,11 @@ function make_map() {
         attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    let blueIcon = make_icon(false, "blue");
-    fetch("https://gist.githubusercontent.com/LHolten/60f91a9cceed5afd4483cd1cbbf2e98d/raw/f7e208a2ee389157a7345c86b15196d8c904201e/jotihunt%2520data").then(res => res.json()).then(data => {
+    fetch("https://gist.githubusercontent.com/LHolten/60f91a9cceed5afd4483cd1cbbf2e98d/raw/df13c88a5072dc794165dff1ea9748ff9cf69abb/jotihunt%2520data").then(res => res.json()).then(data => {
         L.geoJSON(data, {
             pointToLayer: function (feature, latlng) {
                 return L.marker(latlng)
-                    .setIcon(blueIcon)
+                    .setIcon(make_icon(false, color_map[feature.properties.area]))
                     .bindTooltip(feature.properties.name);
             }
         }).addTo(map);

@@ -35,7 +35,7 @@ pub(crate) async fn read_data(
         Message::Bytes(bin) => {
             let broadcast: Broadcast = postcard::from_bytes(&bin).unwrap();
             let key: Address = postcard::from_bytes(&broadcast.key).unwrap();
-            last_marker_color(&markers, &key.fox_name, "green");
+            last_marker_color(&markers, &key.fox_name, "yellow");
             markers.remove(&key);
 
             if broadcast.value.is_empty() {
@@ -44,7 +44,7 @@ pub(crate) async fn read_data(
                 let fox: Fox = postcard::from_bytes(&broadcast.value).unwrap();
                 let name = format!("{} ({})", key.fox_name, key.time_slice);
                 if let Some(marker) = make_marker(&fox, name) {
-                    marker.set_color("green");
+                    marker.set_color("yellow");
                     markers.insert(key.clone(), marker);
                 }
                 data.modify().insert(key.clone(), fox);
@@ -58,7 +58,7 @@ pub(crate) async fn read_data(
             }
             lines.insert(key.fox_name.clone(), line);
 
-            last_marker_color(&markers, &key.fox_name, "red");
+            last_marker_color(&markers, &key.fox_name, "orange");
             future::ok(())
         }
     })
