@@ -125,28 +125,32 @@ fn location_editor(key: &'static str) {
                         div(class="field"){
                             input(size=10, bind:value=new_fox)
                             input(type="button", value="Add", on:click=move |_|{
-                                let edit = AtomicEdit{
-                                    key: postcard::to_stdvec(&Address{
-                                        time_slice: current_time.get().as_ref().clone(),
-                                        fox_name: new_fox.get().as_ref().trim().to_string()
-                                    }).unwrap(),
-                                    old: vec![],
-                                    new: postcard::to_stdvec(&Fox::default()).unwrap()
-                                };
-                                spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
-                            })
-                            input(type="button", value="Del", on:click=move |_|{
-                                let address = Address{
-                                    time_slice: current_time.get().as_ref().clone(),
-                                    fox_name: new_fox.get().as_ref().trim().to_string()
-                                };
-                                if let Some(old_fox) = data.get().get(&address) {
+                                for name in new_fox.get().split(",") {
                                     let edit = AtomicEdit{
-                                        key: postcard::to_stdvec(&address).unwrap(),
-                                        old: postcard::to_stdvec(old_fox).unwrap(),
-                                        new: vec![]
+                                        key: postcard::to_stdvec(&Address{
+                                            time_slice: current_time.get().as_ref().clone(),
+                                            fox_name: name.trim().to_string()
+                                        }).unwrap(),
+                                        old: vec![],
+                                        new: postcard::to_stdvec(&Fox::default()).unwrap()
                                     };
                                     spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
+                                }
+                            })
+                            input(type="button", value="Del", on:click=move |_|{
+                                for name in new_fox.get().split(",") {
+                                    let address = Address{
+                                        time_slice: current_time.get().as_ref().clone(),
+                                        fox_name: name.trim().to_string()
+                                    };
+                                    if let Some(old_fox) = data.get().get(&address) {
+                                        let edit = AtomicEdit{
+                                            key: postcard::to_stdvec(&address).unwrap(),
+                                            old: postcard::to_stdvec(old_fox).unwrap(),
+                                            new: vec![]
+                                        };
+                                        spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
+                                    }
                                 }
                             })
                         }

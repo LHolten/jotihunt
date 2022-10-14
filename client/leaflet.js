@@ -58,7 +58,7 @@ export function add_marker(lat, lng, name, convert) {
     }
     let marker = L.marker([coord[1], coord[0]])
         .bindTooltip(name)
-        .bindPopup(coord.toString())
+        .bindPopup([coord[1], coord[0]].toString())
         .addTo(map);
     return marker;
 }
