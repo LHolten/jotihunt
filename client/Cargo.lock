@@ -384,6 +384,7 @@ dependencies = [
  "futures",
  "gloo",
  "jotihunt-shared",
+ "js-sys",
  "postcard",
  "serde",
  "sycamore",
