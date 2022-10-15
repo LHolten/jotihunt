@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs::read, future::ready};
+use std::{collections::HashMap, future::ready};
 
 use futures::{channel::oneshot, FutureExt, StreamExt, TryStreamExt};
 use gloo::{
@@ -9,7 +9,7 @@ use gloo::{
     utils::document,
 };
 use jotihunt_shared::Traccar;
-use mk_geolocation::{callback::Position, future::PositionStream, PositionOptions};
+use mk_geolocation::{future::PositionStream, PositionOptions};
 use sycamore::{futures::spawn_local_scoped, prelude::*};
 
 use crate::{leaflet::Marker, state::Fox, HOSTNAME, WS_PROTOCOL};

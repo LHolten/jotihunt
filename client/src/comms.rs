@@ -89,7 +89,15 @@ fn last_marker_color<'a>(markers: &'a BTreeMap<Address, Marker>, fox_name: &str,
 fn make_marker(fox: &Fox, name: String) -> Option<Marker> {
     make_value(&fox.latitude)
         .zip(make_value(&fox.longitude))
-        .map(|(lat, lng)| Marker::new(lat, lng, name, true))
+        .map(|(lat, lng)| Marker::new(lat, lng, name.clone(), true))
+        .or_else(|| {
+            Some(Marker::new(
+                fox.longitude.parse().ok()?,
+                fox.latitude.parse().ok()?,
+                name,
+                false,
+            ))
+        })
 }
 
 fn make_value(input: &str) -> Option<f64> {
