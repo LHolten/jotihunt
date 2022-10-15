@@ -79,3 +79,7 @@ export function set_marker_color(marker, color) {
     let icon = make_icon(true, color);
     marker.setIcon(icon);
 }
+
+export function zoom_to(marker) {
+    map.flyTo(marker.getLatLng())
+}

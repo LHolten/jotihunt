@@ -1,13 +1,15 @@
-use std::{collections::HashMap, future::ready};
+use std::{collections::HashMap, fs::read, future::ready};
 
-use futures::{channel::oneshot, FutureExt, StreamExt};
+use futures::{channel::oneshot, FutureExt, StreamExt, TryStreamExt};
 use gloo::{
     console::console_dbg,
+    dialogs::alert,
     net::websocket::{futures::WebSocket, Message},
     timers::future::TimeoutFuture,
     utils::document,
 };
 use jotihunt_shared::Traccar;
+use mk_geolocation::{callback::Position, future::PositionStream, PositionOptions};
 use sycamore::{futures::spawn_local_scoped, prelude::*};
 
 use crate::{leaflet::Marker, state::Fox, HOSTNAME, WS_PROTOCOL};
@@ -29,15 +31,48 @@ pub fn option_panel(key: &'static str) {
                 }
             });
 
+            let show_me = create_signal(cx, false);
+
+            create_effect_scoped(cx, |cx| {
+                if *show_me.get() {
+                    spawn_local_scoped(cx, my_loc())
+                }
+            });
+
             view! {cx,
                 div(class="field"){
                     label(for="traccar"){"Traccar:"}
                     input(id="traccar", type="checkbox", bind:checked=show_live)
                 }
+                div(class="field"){
+                    label(for="mijn"){"Mijn locatie:"}
+                    input(id="mijn", type="checkbox", bind:checked=show_me)
+                }
             }
         },
         &panel,
     );
+}
+
+async fn my_loc() {
+    let mut options = PositionOptions::new();
+    options.enable_high_accuracy(true);
+    let mut marker = None;
+    let _ = PositionStream::new_with_options(options)
+        .try_for_each(move |pos| {
+            let coords = pos.coords();
+            let m = Marker::new(
+                coords.longitude(),
+                coords.latitude(),
+                "you".to_string(),
+                false,
+            );
+            m.zoom_to();
+            marker = Some(m);
+            ready(Ok(()))
+        })
+        .await;
+    alert("could not get your location")
 }
 
 async fn read_live(ws: WebSocket) {

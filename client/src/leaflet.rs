@@ -9,6 +9,8 @@ extern "C" {
     fn remove_marker(marker: &JsMarker);
     fn set_marker_color(marker: &JsMarker, color: &str);
 
+    fn zoom_to(marker: &JsMarker);
+
     type JsLine;
 
     fn new_line() -> JsLine;
@@ -25,6 +27,9 @@ impl Marker {
     }
     pub fn set_color(&self, color: &str) {
         set_marker_color(&self.0, color)
+    }
+    pub fn zoom_to(&self) {
+        zoom_to(&self.0)
     }
 }
 
