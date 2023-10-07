@@ -1,6 +1,9 @@
+use std::time::Duration;
+
 use futures::{channel::mpsc, SinkExt, StreamExt};
 use gloo::{
     net::{http::Request, websocket::futures::WebSocket},
+    timers::future::sleep,
     utils::document,
 };
 use jotihunt_shared::AtomicEdit;
@@ -115,6 +118,22 @@ fn location_editor(key: &'static str) {
                                     };
                                     spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
                                 })
+                                input(type="button", value="View", on:click=move |_|{
+                                    if let Some(marker) = comms::make_marker(
+                                        &Fox {
+                                            latitude: latitude.get().as_ref().trim().to_string(),
+                                            longitude: longitude.get().as_ref().trim().to_string(),
+                                        },
+                                        "zoom",
+                                    ) {
+                                        marker.set_color("grey");
+                                        marker.zoom_to();
+                                        spawn_local_scoped(cx, async {
+                                            sleep(Duration::from_secs(1)).await;
+                                            drop(marker)
+                                        });
+                                    }
+                                })
                             }
                         }
                     },
@@ -125,7 +144,7 @@ fn location_editor(key: &'static str) {
                         div(class="field"){
                             input(size=10, bind:value=new_fox)
                             input(type="button", value="Add", on:click=move |_|{
-                                for name in new_fox.get().split(",") {
+                                for name in new_fox.get().split(',') {
                                     let edit = AtomicEdit{
                                         key: postcard::to_stdvec(&Address{
                                             time_slice: current_time.get().as_ref().clone(),
@@ -138,7 +157,7 @@ fn location_editor(key: &'static str) {
                                 }
                             })
                             input(type="button", value="Del", on:click=move |_|{
-                                for name in new_fox.get().split(",") {
+                                for name in new_fox.get().split(',') {
                                     let address = Address{
                                         time_slice: current_time.get().as_ref().clone(),
                                         fox_name: name.trim().to_string()

@@ -47,19 +47,21 @@ pub(crate) async fn read_data(
                 } else {
                     let fox: Fox = postcard::from_bytes(&broadcast.value).unwrap();
                     let name = format!("{} ({})", key.fox_name, key.time_slice);
-                    if let Some(marker) = make_marker(&fox, name) {
+                    if let Some(marker) = make_marker(&fox, &name) {
                         marker.set_color("yellow");
                         markers.insert(key.clone(), marker);
                     }
                     data.modify().insert(key.clone(), fox);
                 }
 
+                // build a line from all timestamps for this fox
                 let line = Line::new();
                 for (k, v) in &markers {
-                    if &k.fox_name == &key.fox_name {
+                    if k.fox_name == key.fox_name {
                         line.push(v);
                     }
                 }
+                // replace any line with the same fox name
                 lines.insert(key.fox_name.clone(), line);
 
                 last_marker_color(&markers, &key.fox_name, "orange");
@@ -76,33 +78,40 @@ pub(crate) async fn read_data(
     alert(&msg)
 }
 
-fn last_marker_color<'a>(markers: &'a BTreeMap<Address, Marker>, fox_name: &str, color: &str) {
-    if let Some((_a, m)) = markers
-        .into_iter()
-        .rev()
-        .find(|(a, _)| a.fox_name == fox_name)
-    {
+// change the color of the last marker of the given name
+fn last_marker_color(markers: &BTreeMap<Address, Marker>, fox_name: &str, color: &str) {
+    if let Some((_a, m)) = markers.iter().rev().find(|(a, _)| a.fox_name == fox_name) {
         m.set_color(color)
     }
 }
 
-fn make_marker(fox: &Fox, name: String) -> Option<Marker> {
-    make_value(&fox.latitude)
-        .zip(make_value(&fox.longitude))
-        .map(|(lat, lng)| Marker::new(lat, lng, name.clone(), true))
-        .or_else(|| {
-            Some(Marker::new(
-                fox.longitude.parse().ok()?,
-                fox.latitude.parse().ok()?,
-                name,
-                false,
-            ))
-        })
+// creates a marker if both coordinates are valid
+// first tries converting fom RD, then accepts lat long
+pub fn make_marker(fox: &Fox, name: &str) -> Option<Marker> {
+    fn try_rd(fox: &Fox, name: &str) -> Option<Marker> {
+        Some(Marker::new(
+            make_value(&fox.latitude)?,
+            make_value(&fox.longitude)?,
+            name.to_owned(),
+            true,
+        ))
+    }
+    try_rd(fox, name).or_else(|| {
+        Some(Marker::new(
+            fox.longitude.parse().ok()?,
+            fox.latitude.parse().ok()?,
+            name.to_owned(),
+            false,
+        ))
+    })
 }
 
+// checks if the given value is a valid 4 digit number
 fn make_value(input: &str) -> Option<f64> {
     // log!("{}", input);
-    let Ok(val) = input.parse::<u32>() else {return None};
+    let Ok(val) = input.parse::<u32>() else {
+        return None;
+    };
     if input.len() != 4 {
         return None;
     };

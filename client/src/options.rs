@@ -57,7 +57,6 @@ pub fn option_panel(key: &'static str) {
 async fn my_loc() {
     let mut options = PositionOptions::new();
     options.enable_high_accuracy(true);
-    let mut marker = None;
     let _ = PositionStream::new_with_options(options)
         .try_for_each(move |pos| {
             let coords = pos.coords();
@@ -68,7 +67,6 @@ async fn my_loc() {
                 false,
             );
             m.zoom_to();
-            marker = Some(m);
             ready(Ok(()))
         })
         .await;
