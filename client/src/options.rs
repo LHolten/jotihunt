@@ -40,11 +40,13 @@ pub fn option_panel(key: &'static str) {
             });
 
             view! {cx,
-                div(class="field"){
-                    label(for="traccar"){"Traccar:"}
-                    input(id="traccar", type="checkbox", bind:checked=show_live)
+                div() {
+                    "Deze url invullen in je traccar client:" br()
+                    "https://server.lucasholten.com:4848/traccar"
                 }
                 div(class="field"){
+                    label(for="traccar"){"Traccar bekijken:"}
+                    input(id="traccar", type="checkbox", bind:checked=show_live)
                     label(for="mijn"){"Mijn locatie:"}
                     input(id="mijn", type="checkbox", bind:checked=show_me)
                 }

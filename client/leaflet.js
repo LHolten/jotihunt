@@ -36,7 +36,7 @@ function make_map() {
         attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    fetch("https://gist.githubusercontent.com/LHolten/60f91a9cceed5afd4483cd1cbbf2e98d/raw/df13c88a5072dc794165dff1ea9748ff9cf69abb/jotihunt%2520data").then(res => res.json()).then(data => {
+    fetch("https://gist.githubusercontent.com/LHolten/60f91a9cceed5afd4483cd1cbbf2e98d/raw/jotihunt%2520data").then(res => res.json()).then(data => {
         L.geoJSON(data, {
             pointToLayer: function (feature, latlng) {
                 return L.marker(latlng)
