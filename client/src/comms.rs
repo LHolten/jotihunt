@@ -55,7 +55,7 @@ pub(crate) async fn read_data(
                 }
 
                 // build a line from all timestamps for this fox
-                let line = Line::new();
+                let line = Line::new(&key.fox_name);
                 for (k, v) in &markers {
                     if k.fox_name == key.fox_name {
                         line.push(v);

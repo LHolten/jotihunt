@@ -15,14 +15,21 @@ function make_icon(large, color) {
     });
 }
 
-let color_map = {
-    "Alpha": "violet",
-    "Bravo": "gold",
-    "Charlie": "red",
-    "Delta": "blue",
-    "Echo": "green",
-    "Foxtrot": "black",
-    null: "grey"
+function fox_color(fox) {
+    let color_map = {
+        "a": "violet",
+        "b": "gold",
+        "c": "red",
+        "d": "blue",
+        "e": "green",
+        "f": "black",
+    }
+
+    if (fox == null) {
+        return "grey"
+    }
+    let char = fox.charAt(0).toLowerCase()
+    return color_map[char] ?? "gray"
 }
 
 function make_map() {
@@ -36,11 +43,11 @@ function make_map() {
         attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    fetch("https://gist.githubusercontent.com/LHolten/60f91a9cceed5afd4483cd1cbbf2e98d/raw/jotihunt%2520data").then(res => res.json()).then(data => {
+    fetch("https://server.lucasholten.com:4848/deelnemers.geojson").then(res => res.json()).then(data => {
         L.geoJSON(data, {
             pointToLayer: function (feature, latlng) {
                 return L.marker(latlng)
-                    .setIcon(make_icon(false, color_map[feature.properties.area]))
+                    .setIcon(make_icon(false, fox_color(feature.properties.area)))
                     .bindTooltip(feature.properties.name);
             }
         }).addTo(map);
@@ -67,8 +74,8 @@ export function remove_layer(marker) {
     map.removeLayer(marker)
 }
 
-export function new_line() {
-    return L.polyline([], { color: 'red' }).addTo(map);
+export function new_line(fox) {
+    return L.polyline([], { color: fox_color(fox) }).addTo(map);
 }
 
 export function add_line_marker(line, marker) {

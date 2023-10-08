@@ -13,7 +13,7 @@ extern "C" {
 
     type JsLine;
 
-    fn new_line() -> JsLine;
+    fn new_line(fox: &str) -> JsLine;
     fn add_line_marker(line: &JsLine, marker: &JsMarker);
     #[wasm_bindgen(js_name = remove_layer)]
     fn remove_line(line: &JsLine);
@@ -42,8 +42,8 @@ impl Drop for Marker {
 pub struct Line(JsLine);
 
 impl Line {
-    pub fn new() -> Self {
-        Self(new_line())
+    pub fn new(fox: &str) -> Self {
+        Self(new_line(fox))
     }
     pub fn push(&self, marker: &Marker) {
         add_line_marker(&self.0, &marker.0)
