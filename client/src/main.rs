@@ -90,27 +90,20 @@ fn location_editor(key: &'static str) {
                         let fox2 = create_ref(cx, fox2);
                         let latitude = create_signal(cx, fox.latitude);
                         let longitude = create_signal(cx, fox.longitude);
+                        let send_update = create_ref(cx, move || {
+                            let edit = AtomicEdit{
+                                key: postcard::to_stdvec(&key2).unwrap(),
+                                old: postcard::to_stdvec(fox2).unwrap(),
+                                new: postcard::to_stdvec(&Fox{
+                                    latitude: latitude.get().as_ref().trim().to_string(),
+                                    longitude: longitude.get().as_ref().trim().to_string()
+                                }).unwrap(),
+                            };
+                            spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
+                        });
                         view!{cx,
                             div(class="field") {
-                                label{(key.fox_name.clone())}
-                                input(size=7, bind:value=latitude, placeholder="xxxx", updated={
-                                    latitude.get().as_ref()==&fox2.latitude
-                                })
-                                input(size=7, bind:value=longitude, placeholder="yyyy", updated={
-                                    longitude.get().as_ref()==&fox2.longitude
-                                })
-                                input(type="button", value="Update", on:click=move |_|{
-                                    let edit = AtomicEdit{
-                                        key: postcard::to_stdvec(&key2).unwrap(),
-                                        old: postcard::to_stdvec(fox2).unwrap(),
-                                        new: postcard::to_stdvec(&Fox{
-                                            latitude: latitude.get().as_ref().trim().to_string(),
-                                            longitude: longitude.get().as_ref().trim().to_string()
-                                        }).unwrap(),
-                                    };
-                                    spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
-                                })
-                                input(type="button", value="View", on:click=move |_|{
+                                input(type="button", value=(key.fox_name.clone()), on:click=move |_|{
                                     if let Some(marker) = comms::make_marker(
                                         &Fox {
                                             latitude: latitude.get().as_ref().trim().to_string(),
@@ -125,6 +118,16 @@ fn location_editor(key: &'static str) {
                                             drop(marker)
                                         });
                                     }
+                                })
+                                input(size=7, bind:value=latitude, placeholder="xxxx", updated={
+                                    latitude.get().as_ref()==&fox2.latitude
+                                }, on:change=move |_|{
+                                    send_update();
+                                })
+                                input(size=7, bind:value=longitude, placeholder="yyyy", updated={
+                                    longitude.get().as_ref()==&fox2.longitude
+                                }, on:change=move |_|{
+                                    send_update();
                                 })
                             }
                         }
