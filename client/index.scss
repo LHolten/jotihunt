@@ -5,13 +5,14 @@ body {
 
 #panel_column {
     display: flex;
-    height: 100vh;
+    min-height: 100vh;
     padding: 4px;
     position: absolute;
     // this column is only for placement, it should not be clickable
     pointer-events: none;
     flex-direction: column;
     justify-content: end;
+    font-size: larger;
 }
 
 #panel_column>* {
@@ -29,6 +30,7 @@ body {
 .field {
     display: flex;
     justify-content: end;
+    flex-wrap: wrap;
 }
 
 input[updated=false] {
@@ -52,4 +54,9 @@ select,
 textarea,
 button {
     font-size: inherit;
+}
+
+input[type=checkbox] {
+    width: 1em;
+    height: 1em;
 }

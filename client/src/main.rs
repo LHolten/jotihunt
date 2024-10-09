@@ -105,10 +105,10 @@ fn location_editor(key: &'static str) {
                         view!{cx,
                             div(class="field") {
                                 label{(key.fox_name.clone())}
-                                input(size=7, bind:value=latitude, updated={
+                                input(size=7, bind:value=latitude, placeholder="xxxx", updated={
                                     latitude.get().as_ref()==&fox2.latitude
                                 })
-                                input(size=7, bind:value=longitude, updated={
+                                input(size=7, bind:value=longitude, placeholder="yyyy", updated={
                                     longitude.get().as_ref()==&fox2.longitude
                                 })
                                 input(type="button", value="Update", on:click=move |_|{
