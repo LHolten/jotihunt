@@ -61,7 +61,7 @@ fn location_editor(key: &'static str) {
 
             let queue_write = create_ref(cx, queue_write);
             let new_fox = create_signal(cx, "".to_owned());
-            let advanced = create_signal(cx, false);
+            let new_timestamp = create_signal(cx, "".to_owned());
 
             let time_stamps = move || {
                 view! {cx,
@@ -81,19 +81,7 @@ fn location_editor(key: &'static str) {
                 summary {"Coordinaten"}
                 div(class="field") {
                     label(for="time_stamp"){"Tijdstip van de hint:  "}
-                    (if *advanced.get() {
-                        view! { cx,
-                            input(id="time_stamp", bind:value=current_time, list="time_stamps", size=10){}
-                            datalist(id="time_stamps"){(time_stamps())}
-                        }
-                    } else {
-                        view! { cx,
-                            select(id="time_stamp", bind:value=current_time) {(time_stamps())}
-                        }
-                    })
-                }
-                div() {
-                    "RD coordinaten of normale coordinaten:"
+                    select(id="time_stamp", bind:value=current_time) {(time_stamps())}
                 }
                 Keyed(
                     iterable=old_values,
@@ -143,52 +131,47 @@ fn location_editor(key: &'static str) {
                     },
                     key=|(key, fox)| (key.clone(), fox.clone())
                 )
-                (if *advanced.get() {
-                    view!{cx,
-                        br() "Je kan meerdere vossen tegelijk toevoegen"
-                        br() "of verwijderen door commas te gebruiken."
-                        div(class="field"){
-                            input(size=15, bind:value=new_fox)
-                            input(type="button", value="Toevoegen", on:click=move |_|{
-                                for name in new_fox.get().split(',') {
-                                    if name.trim().is_empty() {
-                                        continue;
-                                    }
+                details {
+                    summary {"Tijdstippen en Vossen bewerken"}
+                    div(class="field"){
+                        input(size=15, bind:value=new_fox, placeholder="alpha, bravo, charlie")
+                        input(type="button", value="Toevoegen", on:click=move |_|{
+                            for name in new_fox.get().split(',') {
+                                if name.trim().is_empty() {
+                                    continue;
+                                }
+                                let edit = AtomicEdit{
+                                    key: postcard::to_stdvec(&Address{
+                                        time_slice: current_time.get().as_ref().clone(),
+                                        fox_name: name.trim().to_string()
+                                    }).unwrap(),
+                                    old: vec![],
+                                    new: postcard::to_stdvec(&Fox::default()).unwrap()
+                                };
+                                spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
+                            }
+                        })
+                        input(type="button", value="Verwijderen", on:click=move |_|{
+                            for name in new_fox.get().split(',') {
+                                let address = Address{
+                                    time_slice: current_time.get().as_ref().clone(),
+                                    fox_name: name.trim().to_string()
+                                };
+                                if let Some(old_fox) = data.get().get(&address) {
                                     let edit = AtomicEdit{
-                                        key: postcard::to_stdvec(&Address{
-                                            time_slice: current_time.get().as_ref().clone(),
-                                            fox_name: name.trim().to_string()
-                                        }).unwrap(),
-                                        old: vec![],
-                                        new: postcard::to_stdvec(&Fox::default()).unwrap()
+                                        key: postcard::to_stdvec(&address).unwrap(),
+                                        old: postcard::to_stdvec(old_fox).unwrap(),
+                                        new: vec![]
                                     };
                                     spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
                                 }
-                            })
-                            input(type="button", value="Verwijderen", on:click=move |_|{
-                                for name in new_fox.get().split(',') {
-                                    let address = Address{
-                                        time_slice: current_time.get().as_ref().clone(),
-                                        fox_name: name.trim().to_string()
-                                    };
-                                    if let Some(old_fox) = data.get().get(&address) {
-                                        let edit = AtomicEdit{
-                                            key: postcard::to_stdvec(&address).unwrap(),
-                                            old: postcard::to_stdvec(old_fox).unwrap(),
-                                            new: vec![]
-                                        };
-                                        spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
-                                    }
-                                }
-                            })
-                        }
+                            }
+                        })
+                        input(size=8, bind:value=new_timestamp, placeholder="hh:mm")
+                        input(type="button", value="Maak tijdstip", on:click=move |_|{
+                            current_time.set(new_timestamp.get().as_str().to_owned());
+                        })
                     }
-                } else {
-                    view!(cx,)
-                })
-                div(class="field"){
-                    label(for="advanced"){"Tijdstippen en Vossen bewerken"}
-                    input(id="advanced", type="checkbox", bind:checked=advanced)
                 }
             }
         },
