@@ -133,6 +133,12 @@ fn location_editor(key: &'static str) {
                 )
                 details {
                     summary {"Tijdstippen en Vossen bewerken"}
+                    div(class="field") {
+                        input(size=8, bind:value=new_timestamp, placeholder="hh:mm")
+                        input(type="button", value="Selecteer tijdstip", on:click=move |_|{
+                            current_time.set(new_timestamp.get().as_str().to_owned());
+                        })
+                    }
                     div(class="field"){
                         input(size=15, bind:value=new_fox, placeholder="alpha, bravo, charlie")
                         input(type="button", value="Toevoegen", on:click=move |_|{
@@ -166,10 +172,6 @@ fn location_editor(key: &'static str) {
                                     spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
                                 }
                             }
-                        })
-                        input(size=8, bind:value=new_timestamp, placeholder="hh:mm")
-                        input(type="button", value="Maak tijdstip", on:click=move |_|{
-                            current_time.set(new_timestamp.get().as_str().to_owned());
                         })
                     }
                 }
