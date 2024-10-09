@@ -78,6 +78,7 @@ fn location_editor(key: &'static str) {
             };
 
             view! {cx,
+                summary {"Coordinaten"}
                 div(class="field") {
                     label(for="time_stamp"){"Tijdstip van de hint:  "}
                     (if *advanced.get() {

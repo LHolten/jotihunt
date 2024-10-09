@@ -40,6 +40,7 @@ pub fn option_panel(key: &'static str) {
             });
 
             view! {cx,
+                summary {"Opties"}
                 div() {
                     "Deze url invullen in je traccar client:" br()
                     "https://server.lucasholten.com:4848/traccar"

@@ -46,3 +46,10 @@ input[updated=false] {
 * {
     box-sizing: border-box;
 }
+
+input,
+select,
+textarea,
+button {
+    font-size: inherit;
+}
