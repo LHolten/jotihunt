@@ -4,3 +4,4 @@ joti.db/
 /shared/Cargo.lock
 report.json
 report.html
+*_json/
