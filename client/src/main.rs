@@ -46,6 +46,8 @@ fn location_editor(key: &'static str) {
             });
             let slice_names = create_memo(cx, || {
                 let mut names: Vec<_> = data.get().keys().map(|k| k.time_slice.clone()).collect();
+                names.push(current_time.get().as_ref().to_owned());
+                names.sort();
                 names.dedup();
                 names
             });
@@ -65,12 +67,12 @@ fn location_editor(key: &'static str) {
 
             let time_stamps = move || {
                 view! {cx,
-                    option(value=current_time.get(), selected=true, hidden=true){(current_time.get())}
                     Keyed(
                         iterable=slice_names,
                         view=move |cx, key| {
                             let key = create_ref(cx, key);
-                            view!{cx, option(value=*key){(*key)}}
+                            let selected = key == current_time.get().as_ref();
+                            view!{cx, option(value=*key, selected=selected){(*key)}}
                         },
                         key=|key| key.clone(),
                     )
@@ -137,9 +139,11 @@ fn location_editor(key: &'static str) {
                 details {
                     summary {"Tijdstippen en Vossen bewerken"}
                     div(class="field") {
-                        input(size=8, bind:value=new_timestamp, placeholder="hh:mm")
+                        input(type="time", bind:value=new_timestamp)
                         input(type="button", value="Selecteer tijdstip", on:click=move |_|{
-                            current_time.set(new_timestamp.get().as_str().to_owned());
+                            if !new_timestamp.get().is_empty() {
+                                current_time.set(new_timestamp.get().as_ref().to_owned());
+                            }
                         })
                     }
                     div(class="field"){
