@@ -1,14 +1,17 @@
-use std::time::Duration;
+use std::{collections::BTreeMap, rc::Rc, time::Duration};
 
 use futures::{channel::mpsc, SinkExt, StreamExt};
 use gloo::{
+    dialogs::alert,
     net::{http::Request, websocket::futures::WebSocket},
     timers::future::sleep,
     utils::document,
 };
 use jotihunt_shared::AtomicEdit;
+use js_sys::Date;
+use leaflet::Line;
 use options::option_panel;
-use state::{Address, Fox, State};
+use state::{Address, Fox};
 use sycamore::{
     futures::{spawn_local, spawn_local_scoped},
     prelude::*,
@@ -28,28 +31,30 @@ fn location_editor(key: &'static str) {
         .get_element_by_id("coord_editor")
         .expect("there is a add_point button");
 
-    let state = State::default();
-
     sycamore::render_to(
         |cx| {
-            let data = create_signal(cx, state.data);
-            let current_time = create_signal(cx, state.current_time);
+            let data = create_signal(cx, BTreeMap::<Address, Fox>::new());
+            let current_time = create_signal(cx, String::new());
+
+            let current_day = {
+                let date = Date::new_0();
+                let day = date.get_date();
+                let month = date.get_month();
+                let year = date.get_full_year();
+                create_signal(cx, format!("{year:0>4}-{month:0>2}-{day:0>2}"))
+            };
+
+            // let check_day = |day: &str| &*current_day.get() == day;
+            let check_day = create_ref(cx, |k: &Address| true);
+
             let old_values = create_memo(cx, || {
                 data.get()
                     .iter()
                     .filter_map(|(k, v)| {
-                        k.time_slice
-                            .eq(&*current_time.get())
-                            .then_some((k.clone(), v.clone()))
+                        let time_eq = &k.time == &*current_time.get();
+                        (time_eq && check_day(k)).then_some((k.clone(), v.clone()))
                     })
                     .collect::<Vec<_>>()
-            });
-            let slice_names = create_memo(cx, || {
-                let mut names: Vec<_> = data.get().keys().map(|k| k.time_slice.clone()).collect();
-                names.push(current_time.get().as_ref().to_owned());
-                names.sort();
-                names.dedup();
-                names
             });
 
             let ws_address = format!("{WS_PROTOCOL}://{HOSTNAME}/{key}");
@@ -61,10 +66,52 @@ fn location_editor(key: &'static str) {
             spawn_local_scoped(cx, comms::write_data(queue_read, write));
             spawn_local_scoped(cx, comms::read_data(read, data));
 
+            let today_by_fox = create_memo(cx, || {
+                let mut today_by_fox: BTreeMap<_, Vec<_>> = BTreeMap::new();
+                data.get().iter().for_each(|(k, v)| {
+                    if check_day(k) {
+                        today_by_fox
+                            .entry(k.fox_name.clone())
+                            .or_default()
+                            .push((k.time.clone(), v.clone()));
+                    }
+                });
+                today_by_fox.into_iter().collect()
+            });
+
+            let lines = map_indexed(cx, today_by_fox, |_cx, (fox_name, points)| {
+                let line = Line::new(&fox_name);
+                let mut markers = vec![];
+                for (time, fox) in points {
+                    let name = format!("{} ({})", fox_name, time);
+                    if let Some(marker) = comms::make_marker(&fox, &name) {
+                        marker.set_color("yellow");
+                        line.push(&marker);
+                        markers.push(marker);
+                    }
+                }
+                if let Some(last) = markers.last() {
+                    last.set_color("orange");
+                }
+                Rc::new((fox_name, line, markers))
+            });
+            create_memo(cx, || lines.get());
+
             let queue_write = create_ref(cx, queue_write);
             let new_fox = create_signal(cx, "".to_owned());
             let new_timestamp = create_signal(cx, "".to_owned());
 
+            let slice_names = create_memo(cx, || {
+                let mut names: Vec<_> = data
+                    .get()
+                    .keys()
+                    .filter_map(|k| check_day(k).then_some(k.time.clone()))
+                    .collect();
+                names.push(current_time.get().as_ref().to_owned());
+                names.sort();
+                names.dedup();
+                names
+            });
             let time_stamps = move || {
                 view! {cx,
                     Keyed(
@@ -84,6 +131,7 @@ fn location_editor(key: &'static str) {
                 div(class="field") {
                     label(for="time_stamp"){"Tijdstip van de hint:  "}
                     select(id="time_stamp", bind:value=current_time) {(time_stamps())}
+                    input(type="date", bind:value=current_day)
                 }
                 Keyed(
                     iterable=old_values,
@@ -143,6 +191,8 @@ fn location_editor(key: &'static str) {
                         input(type="button", value="Selecteer tijdstip", on:click=move |_|{
                             if !new_timestamp.get().is_empty() {
                                 current_time.set(new_timestamp.get().as_ref().to_owned());
+                            } else {
+                                alert("Geen tijdstip ingevoerd")
                             }
                         })
                     }
@@ -155,7 +205,8 @@ fn location_editor(key: &'static str) {
                                 }
                                 let edit = AtomicEdit{
                                     key: postcard::to_stdvec(&Address{
-                                        time_slice: current_time.get().as_ref().clone(),
+                                        // day: current_day.get().as_ref().clone(),
+                                        time: current_time.get().as_ref().clone(),
                                         fox_name: name.trim().to_string()
                                     }).unwrap(),
                                     old: vec![],
@@ -167,7 +218,8 @@ fn location_editor(key: &'static str) {
                         input(type="button", value="Verwijderen", on:click=move |_|{
                             for name in new_fox.get().split(',') {
                                 let address = Address{
-                                    time_slice: current_time.get().as_ref().clone(),
+                                    // day: current_day.get().as_ref().clone(),
+                                    time: current_time.get().as_ref().clone(),
                                     fox_name: name.trim().to_string()
                                 };
                                 if let Some(old_fox) = data.get().get(&address) {
@@ -202,5 +254,17 @@ fn main() {
 
         location_editor(key);
         option_panel(key);
+    });
+}
+
+#[test]
+fn update_keyed() {
+    create_scope_immediate(|cx| {
+        let a = create_signal(cx, vec![("a", 1), ("b", 2), ("c", 3)]);
+        let mapped = map_keyed(cx, a, |_, x| x.1 * 2, |x| x.0);
+        assert_eq!(*mapped.get(), vec![2, 4, 6]);
+
+        a.set(vec![("a", 0), ("b", 0), ("c", 0)]);
+        assert_eq!(*mapped.get(), vec![0, 0, 0]);
     });
 }

@@ -1,7 +1,5 @@
-use std::collections::BTreeMap;
-
 use crate::{
-    leaflet::{Line, Marker},
+    leaflet::Marker,
     state::{Address, Fox},
 };
 use futures::{self, channel::mpsc, future, StreamExt, TryStreamExt};
@@ -30,41 +28,19 @@ pub(crate) async fn read_data(
     read: futures::stream::SplitStream<WebSocket>,
     data: &Signal<std::collections::BTreeMap<Address, Fox>>,
 ) {
-    let mut markers = BTreeMap::new();
-    let mut lines = BTreeMap::new();
-
     let _ = read
         .try_for_each(|msg| match msg {
             Message::Text(_) => panic!("we want bytes"),
             Message::Bytes(bin) => {
                 let broadcast: Broadcast = postcard::from_bytes(&bin).unwrap();
                 let key: Address = postcard::from_bytes(&broadcast.key).unwrap();
-                last_marker_color(&markers, &key.fox_name, "yellow");
-                markers.remove(&key);
 
                 if broadcast.value.is_empty() {
                     data.modify().remove(&key);
                 } else {
                     let fox: Fox = postcard::from_bytes(&broadcast.value).unwrap();
-                    let name = format!("{} ({})", key.fox_name, key.time_slice);
-                    if let Some(marker) = make_marker(&fox, &name) {
-                        marker.set_color("yellow");
-                        markers.insert(key.clone(), marker);
-                    }
                     data.modify().insert(key.clone(), fox);
                 }
-
-                // build a line from all timestamps for this fox
-                let line = Line::new(&key.fox_name);
-                for (k, v) in &markers {
-                    if k.fox_name == key.fox_name {
-                        line.push(v);
-                    }
-                }
-                // replace any line with the same fox name
-                lines.insert(key.fox_name.clone(), line);
-
-                last_marker_color(&markers, &key.fox_name, "orange");
                 future::ok(())
             }
         })
@@ -76,13 +52,6 @@ pub(crate) async fn read_data(
         {local_time}"
     );
     alert(&msg)
-}
-
-// change the color of the last marker of the given name
-fn last_marker_color(markers: &BTreeMap<Address, Marker>, fox_name: &str, color: &str) {
-    if let Some((_a, m)) = markers.iter().rev().find(|(a, _)| a.fox_name == fox_name) {
-        m.set_color(color)
-    }
 }
 
 // creates a marker if both coordinates are valid
