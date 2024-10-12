@@ -34,6 +34,19 @@ fn location_editor(key: &'static str) {
     sycamore::render_to(
         |cx| {
             let data = create_signal(cx, BTreeMap::<Address, Fox>::new());
+
+            let queue_write = {
+                let ws_address = format!("{WS_PROTOCOL}://{HOSTNAME}/{key}");
+                let ws = WebSocket::open(&ws_address).unwrap();
+
+                let (write, read) = ws.split();
+                let (queue_write, queue_read) = mpsc::unbounded();
+
+                spawn_local_scoped(cx, comms::write_data(queue_read, write));
+                spawn_local_scoped(cx, comms::read_data(read, data));
+                create_ref(cx, queue_write)
+            };
+
             let current_time = create_signal(cx, String::new());
 
             let current_day = {
@@ -44,7 +57,7 @@ fn location_editor(key: &'static str) {
                 create_signal(cx, format!("{year:0>4}-{month:0>2}-{day:0>2}"))
             };
 
-            // let check_day = |day: &str| &*current_day.get() == day;
+            // let check_day = create_ref(cx, |k: &Address| &*current_day.get() == &k.day);
             let check_day = create_ref(cx, |k: &Address| true);
 
             let old_values = create_memo(cx, || {
@@ -57,47 +70,39 @@ fn location_editor(key: &'static str) {
                     .collect::<Vec<_>>()
             });
 
-            let ws_address = format!("{WS_PROTOCOL}://{HOSTNAME}/{key}");
-            let ws = WebSocket::open(&ws_address).unwrap();
-
-            let (write, read) = ws.split();
-            let (queue_write, queue_read) = mpsc::unbounded();
-
-            spawn_local_scoped(cx, comms::write_data(queue_read, write));
-            spawn_local_scoped(cx, comms::read_data(read, data));
-
-            let today_by_fox = create_memo(cx, || {
-                let mut today_by_fox: BTreeMap<_, Vec<_>> = BTreeMap::new();
-                data.get().iter().for_each(|(k, v)| {
-                    if check_day(k) {
-                        today_by_fox
-                            .entry(k.fox_name.clone())
-                            .or_default()
-                            .push((k.time.clone(), v.clone()));
-                    }
+            {
+                let today_by_fox = create_memo(cx, || {
+                    let mut today_by_fox: BTreeMap<_, Vec<_>> = BTreeMap::new();
+                    data.get().iter().for_each(|(k, v)| {
+                        if check_day(k) {
+                            today_by_fox
+                                .entry(k.fox_name.clone())
+                                .or_default()
+                                .push((k.time.clone(), v.clone()));
+                        }
+                    });
+                    today_by_fox.into_iter().collect()
                 });
-                today_by_fox.into_iter().collect()
-            });
 
-            let lines = map_indexed(cx, today_by_fox, |_cx, (fox_name, points)| {
-                let line = Line::new(&fox_name);
-                let mut markers = vec![];
-                for (time, fox) in points {
-                    let name = format!("{} ({})", fox_name, time);
-                    if let Some(marker) = comms::make_marker(&fox, &name) {
-                        marker.set_color("yellow");
-                        line.push(&marker);
-                        markers.push(marker);
+                let lines = map_indexed(cx, today_by_fox, |_cx, (fox_name, points)| {
+                    let line = Line::new(&fox_name);
+                    let mut markers = vec![];
+                    for (time, fox) in points {
+                        let name = format!("{} ({})", fox_name, time);
+                        if let Some(marker) = comms::make_marker(&fox, &name) {
+                            marker.set_color("yellow");
+                            line.push(&marker);
+                            markers.push(marker);
+                        }
                     }
-                }
-                if let Some(last) = markers.last() {
-                    last.set_color("orange");
-                }
-                Rc::new((fox_name, line, markers))
-            });
-            create_memo(cx, || lines.get());
+                    if let Some(last) = markers.last() {
+                        last.set_color("orange");
+                    }
+                    Rc::new((fox_name, line, markers))
+                });
+                create_memo(cx, || lines.get());
+            }
 
-            let queue_write = create_ref(cx, queue_write);
             let new_fox = create_signal(cx, "".to_owned());
             let new_timestamp = create_signal(cx, "".to_owned());
 
@@ -112,25 +117,22 @@ fn location_editor(key: &'static str) {
                 names.dedup();
                 names
             });
-            let time_stamps = move || {
-                view! {cx,
-                    Keyed(
-                        iterable=slice_names,
-                        view=move |cx, key| {
-                            let key = create_ref(cx, key);
-                            let selected = key == current_time.get().as_ref();
-                            view!{cx, option(value=*key, selected=selected){(*key)}}
-                        },
-                        key=|key| key.clone(),
-                    )
-                }
-            };
 
             view! {cx,
                 summary {"Coordinaten"}
                 div(class="field") {
                     label(for="time_stamp"){"Tijdstip van de hint:  "}
-                    select(id="time_stamp", bind:value=current_time) {(time_stamps())}
+                    select(id="time_stamp", bind:value=current_time) {
+                        Keyed(
+                            iterable=slice_names,
+                            view=move |cx, key| {
+                                let key = create_ref(cx, key);
+                                let selected = key == current_time.get().as_ref();
+                                view!{cx, option(value=*key, selected=selected){(*key)}}
+                            },
+                            key=|key| key.clone(),
+                        )
+                    }
                     input(type="date", bind:value=current_day)
                 }
                 Keyed(
