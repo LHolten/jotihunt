@@ -104,7 +104,6 @@ fn location_editor(key: &'static str) {
             }
 
             let new_fox = create_signal(cx, "".to_owned());
-            let new_timestamp = create_signal(cx, "".to_owned());
 
             let slice_names = create_memo(cx, || {
                 let mut names: Vec<_> = data
@@ -121,7 +120,7 @@ fn location_editor(key: &'static str) {
             view! {cx,
                 summary {"Coordinaten"}
                 div(class="field") {
-                    label(for="time_stamp"){"Tijdstip van de hint:  "}
+                    label(for="time_stamp"){"Tijdstip:  "}
                     select(id="time_stamp", bind:value=current_time) {
                         Keyed(
                             iterable=slice_names,
@@ -188,19 +187,14 @@ fn location_editor(key: &'static str) {
                 )
                 details {
                     summary {"Tijdstippen en Vossen bewerken"}
-                    div(class="field") {
-                        input(type="time", bind:value=new_timestamp)
-                        input(type="button", value="Selecteer tijdstip", on:click=move |_|{
-                            if !new_timestamp.get().is_empty() {
-                                current_time.set(new_timestamp.get().as_ref().to_owned());
-                            } else {
-                                alert("Geen tijdstip ingevoerd")
-                            }
-                        })
-                    }
                     div(class="field"){
+                        input(type="time", bind:value=current_time)
                         input(size=15, bind:value=new_fox, placeholder="alpha, bravo, charlie")
                         input(type="button", value="Toevoegen", on:click=move |_|{
+                            if current_time.get().is_empty() {
+                                alert("Selecteer eerst een tijdstip");
+                                return;
+                            }
                             for name in new_fox.get().split(',') {
                                 if name.trim().is_empty() {
                                     continue;
@@ -218,6 +212,10 @@ fn location_editor(key: &'static str) {
                             }
                         })
                         input(type="button", value="Verwijderen", on:click=move |_|{
+                            if current_time.get().is_empty() {
+                                alert("Selecteer eerst een tijdstip");
+                                return;
+                            }
                             for name in new_fox.get().split(',') {
                                 let address = Address{
                                     // day: current_day.get().as_ref().clone(),
