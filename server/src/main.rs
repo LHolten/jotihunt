@@ -1,10 +1,7 @@
 mod geojson;
+mod status;
 
-use std::{
-    net::SocketAddr,
-    ops::{Deref, Not},
-    time::Duration,
-};
+use std::{net::SocketAddr, ops::Not, time::Duration};
 
 use async_stream::stream;
 use axum::{
@@ -22,8 +19,9 @@ use futures_util::{future, pin_mut, StreamExt, TryStreamExt};
 use geojson::get_reloading_geojson;
 use hyper::StatusCode;
 use jotihunt_shared::{AtomicEdit, Broadcast, Traccar};
-use sled::{Db, Event};
+use sled::{Event, Tree};
 
+use status::retrieve_status_loop;
 use tokio::{
     sync::broadcast::{self, error::RecvError},
     time::sleep,
@@ -56,6 +54,7 @@ async fn main() -> anyhow::Result<()> {
     let live = leak(broadcast::channel(16).0);
 
     let geojson = get_reloading_geojson().await;
+    tokio::spawn(retrieve_status_loop(db));
 
     let router = Router::new()
         .route(
@@ -73,6 +72,20 @@ async fn main() -> anyhow::Result<()> {
                         return StatusCode::UNAUTHORIZED.into_response();
                     }
                     req.on_upgrade(|ws| accept_and_log(ws, db))
+                },
+            ),
+        )
+        .route(
+            "/status/:key",
+            get(
+                move |req: WebSocketUpgrade, Path(key): Path<Uuid>| async move {
+                    if key != secret {
+                        return StatusCode::UNAUTHORIZED.into_response();
+                    }
+                    req.on_upgrade(|ws| async {
+                        let tree = db.open_tree("status").unwrap();
+                        accept_and_log(ws, &tree).await
+                    })
                 },
             ),
         )
@@ -122,7 +135,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn accept_and_log(stream: WebSocket, db: &Db) {
+async fn accept_and_log(stream: WebSocket, db: &Tree) {
     match accept_connection(stream, db).await {
         Ok(()) => {}
         Err(e) => {
@@ -131,7 +144,7 @@ async fn accept_and_log(stream: WebSocket, db: &Db) {
     }
 }
 
-async fn accept_connection(stream: WebSocket, db: &Db) -> anyhow::Result<()> {
+async fn accept_connection(stream: WebSocket, db: &Tree) -> anyhow::Result<()> {
     println!("client connected");
 
     let (write, read) = stream.split();
@@ -154,7 +167,7 @@ async fn accept_connection(stream: WebSocket, db: &Db) -> anyhow::Result<()> {
 
     let send_edits = stream! {
         let mut subscriber = db.watch_prefix([]);
-        for pair in db.deref() {
+        for pair in db {
             yield pair.unwrap();
         }
         while let Some(event) = (&mut subscriber).await {
