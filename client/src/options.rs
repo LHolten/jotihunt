@@ -25,7 +25,7 @@ pub fn option_panel(key: &'static str) {
 
             create_effect_scoped(cx, move |cx| {
                 if *show_live.get() {
-                    let ws_address = format!("{WS_PROTOCOL}://{HOSTNAME}/live/{key}");
+                    let ws_address = format!("{WS_PROTOCOL}://{HOSTNAME}/{key}/live");
                     let ws = WebSocket::open(&ws_address).unwrap();
                     spawn_local_scoped(cx, read_live(ws))
                 }

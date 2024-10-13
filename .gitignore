@@ -1,6 +1,7 @@
 target/
 dist/
 joti.db/
+joti.db.no-date/
 /shared/Cargo.lock
 report.json
 report.html

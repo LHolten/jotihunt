@@ -9,8 +9,10 @@ use async_stream::stream;
 use axum::{
     extract::{
         ws::{Message, WebSocket},
-        Path, Query, WebSocketUpgrade,
+        Path, Query, Request, WebSocketUpgrade,
     },
+    http::StatusCode,
+    middleware::Next,
     response::IntoResponse,
     routing::{any, get},
     Router,
@@ -19,7 +21,6 @@ use axum_server::tls_rustls::RustlsConfig;
 use clap::Parser;
 use futures_util::{future, pin_mut, StreamExt, TryStreamExt};
 use geojson::get_reloading_geojson;
-use hyper::StatusCode;
 use jotihunt_shared::{AtomicEdit, Broadcast, Traccar};
 use sled::{Event, Tree};
 
@@ -28,8 +29,8 @@ use tokio::{
     sync::broadcast::{self, error::RecvError},
     time::sleep,
 };
-use tower::{make::Shared, ServiceBuilder};
-use tower_http::{auth::RequireAuthorizationLayer, cors::CorsLayer};
+use tower::make::Shared;
+use tower_http::{cors::CorsLayer, validate_request::ValidateRequestHeaderLayer};
 use uuid::Uuid;
 
 #[derive(Parser)]
@@ -62,35 +63,51 @@ async fn main() -> anyhow::Result<()> {
     let router = Router::new()
         .route(
             "/secret",
-            ServiceBuilder::new()
-                .layer(CorsLayer::very_permissive())
-                .layer(RequireAuthorizationLayer::basic("", &args.password))
-                .service(get(move || async move { secret.to_string() })),
+            get(move || async move { secret.to_string() })
+                .route_layer(CorsLayer::very_permissive())
+                .layer(ValidateRequestHeaderLayer::basic("", &args.password)),
         )
-        .route(
+        .nest(
             "/:key",
-            get(
-                move |req: WebSocketUpgrade, Path(key): Path<Uuid>| async move {
-                    if key != secret {
-                        return StatusCode::UNAUTHORIZED.into_response();
-                    }
-                    req.on_upgrade(|ws| accept_and_log(ws, db))
-                },
-            ),
-        )
-        .route(
-            "/status/:key",
-            get(
-                move |req: WebSocketUpgrade, Path(key): Path<Uuid>| async move {
-                    if key != secret {
-                        return StatusCode::UNAUTHORIZED.into_response();
-                    }
-                    req.on_upgrade(|ws| async {
-                        let tree = db.open_tree("status").unwrap();
-                        accept_and_log(ws, &tree).await
-                    })
-                },
-            ),
+            Router::new()
+                .route(
+                    "/locations",
+                    get(move |req: WebSocketUpgrade| async move {
+                        req.on_upgrade(|ws| accept_and_log(ws, db))
+                    }),
+                )
+                .route(
+                    "/status",
+                    get(move |req: WebSocketUpgrade| async move {
+                        req.on_upgrade(|ws| async {
+                            let tree = db.open_tree("status").unwrap();
+                            accept_and_log(ws, &tree).await
+                        })
+                    }),
+                )
+                .route(
+                    "/articles",
+                    get(move |req: WebSocketUpgrade| async move {
+                        req.on_upgrade(|ws| async {
+                            let tree = db.open_tree("articles").unwrap();
+                            accept_and_log(ws, &tree).await
+                        })
+                    }),
+                )
+                .route(
+                    "/live",
+                    get(move |req: WebSocketUpgrade| async move {
+                        req.on_upgrade(|ws| live_ws(ws, live.subscribe()))
+                    }),
+                )
+                .route_layer(axum::middleware::from_fn(
+                    move |Path(key): Path<Uuid>, request: Request, next: Next| async move {
+                        if key != secret {
+                            return StatusCode::UNAUTHORIZED.into_response();
+                        }
+                        next.run(request).await
+                    },
+                )),
         )
         .route(
             "/traccar",
@@ -100,21 +117,9 @@ async fn main() -> anyhow::Result<()> {
             }),
         )
         .route(
-            "/live/:key",
-            get(
-                move |req: WebSocketUpgrade, Path(key): Path<Uuid>| async move {
-                    if key != secret {
-                        return StatusCode::UNAUTHORIZED.into_response();
-                    }
-                    req.on_upgrade(|ws| live_ws(ws, live.subscribe()))
-                },
-            ),
-        )
-        .route(
             "/deelnemers.geojson",
-            ServiceBuilder::new()
-                .layer(CorsLayer::very_permissive())
-                .service(get(move || async move { geojson.load().as_ref().clone() })),
+            get(move || async move { geojson.load().as_ref().clone() })
+                .route_layer(CorsLayer::very_permissive()),
         );
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 4848));

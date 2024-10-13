@@ -36,7 +36,7 @@ fn location_editor(key: &'static str) {
             let data = create_signal(cx, BTreeMap::<Address, Fox>::new());
 
             let queue_write = {
-                let ws_address = format!("{WS_PROTOCOL}://{HOSTNAME}/{key}");
+                let ws_address = format!("{WS_PROTOCOL}://{HOSTNAME}/{key}/locations");
                 let ws = WebSocket::open(&ws_address).unwrap();
 
                 let (write, read) = ws.split();
