@@ -198,12 +198,13 @@ fn location_editor(key: &'static str) {
                                 if name.trim().is_empty() {
                                     continue;
                                 }
+                                let address = Address{
+                                    day: current_day.get().as_ref().clone(),
+                                    time: current_time.get().as_ref().clone(),
+                                    fox_name: name.trim().to_string()
+                                };
                                 let edit = AtomicEdit{
-                                    key: postcard::to_stdvec(&Address{
-                                        day: current_day.get().as_ref().clone(),
-                                        time: current_time.get().as_ref().clone(),
-                                        fox_name: name.trim().to_string()
-                                    }).unwrap(),
+                                    key: postcard::to_stdvec(&address).unwrap(),
                                     old: vec![],
                                     new: postcard::to_stdvec(&Fox::default()).unwrap()
                                 };
@@ -221,14 +222,12 @@ fn location_editor(key: &'static str) {
                                     time: current_time.get().as_ref().clone(),
                                     fox_name: name.trim().to_string()
                                 };
-                                if let Some(old_fox) = data.get().get(&address) {
-                                    let edit = AtomicEdit{
-                                        key: postcard::to_stdvec(&address).unwrap(),
-                                        old: postcard::to_stdvec(old_fox).unwrap(),
-                                        new: vec![]
-                                    };
-                                    spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
-                                }
+                                let edit = AtomicEdit{
+                                    key: postcard::to_stdvec(&address).unwrap(),
+                                    old: postcard::to_stdvec(&Fox::default()).unwrap(),
+                                    new: vec![]
+                                };
+                                spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
                             }
                         })
                     }
