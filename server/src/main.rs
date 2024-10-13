@@ -1,8 +1,10 @@
+mod article;
 mod geojson;
 mod status;
 
 use std::{net::SocketAddr, ops::Not, time::Duration};
 
+use article::retrieve_articles_loop;
 use async_stream::stream;
 use axum::{
     extract::{
@@ -55,6 +57,7 @@ async fn main() -> anyhow::Result<()> {
 
     let geojson = get_reloading_geojson().await;
     tokio::spawn(retrieve_status_loop(db));
+    tokio::spawn(retrieve_articles_loop(db));
 
     let router = Router::new()
         .route(

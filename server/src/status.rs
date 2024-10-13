@@ -17,16 +17,9 @@ struct Area {
 }
 
 fn update_single_status(tree: &sled::Tree, area: Area) -> Result<(), postcard::Error> {
-    let prefix = postcard::to_allocvec(&area.name)?;
-    if let Some(last_status) = tree.scan_prefix(prefix).last() {
-        let (_, old_val) = last_status.unwrap();
-        let old_status: String = postcard::from_bytes(&old_val)?;
-        if old_status != area.status {
-            let key = postcard::to_allocvec(&(&area.name, &area.updated_at))?;
-            let value = postcard::to_allocvec(&area.status)?;
-            let _ = tree.insert(&key, value);
-        }
-    }
+    let key = postcard::to_allocvec(&(&area.updated_at, &area.name))?;
+    let value = postcard::to_allocvec(&area.status)?;
+    let _ = tree.insert(&key, value).unwrap();
     Ok(())
 }
 
