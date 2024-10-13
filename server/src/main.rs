@@ -3,11 +3,9 @@ mod geojson;
 use std::{
     net::SocketAddr,
     ops::{Deref, Not},
-    sync::Arc,
     time::Duration,
 };
 
-use arc_swap::ArcSwap;
 use async_stream::stream;
 use axum::{
     extract::{
@@ -21,6 +19,7 @@ use axum::{
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Parser;
 use futures_util::{future, pin_mut, StreamExt, TryStreamExt};
+use geojson::get_reloading_geojson;
 use hyper::StatusCode;
 use jotihunt_shared::{AtomicEdit, Broadcast, Traccar};
 use sled::{Db, Event};
@@ -32,8 +31,6 @@ use tokio::{
 use tower::{make::Shared, ServiceBuilder};
 use tower_http::{auth::RequireAuthorizationLayer, cors::CorsLayer};
 use uuid::Uuid;
-
-use crate::geojson::get_geo;
 
 #[derive(Parser)]
 struct Args {
@@ -58,9 +55,7 @@ async fn main() -> anyhow::Result<()> {
 
     let live = leak(broadcast::channel(16).0);
 
-    let geojson = get_geo().await.unwrap();
-    let geojson = Arc::new(ArcSwap::new(Arc::new(geojson)));
-    tokio::spawn(reload_geojson(geojson.clone()));
+    let geojson = get_reloading_geojson().await;
 
     let router = Router::new()
         .route(
@@ -219,21 +214,6 @@ async fn live_ws(mut stream: WebSocket, mut live: LiveReceiver) {
             Err(RecvError::Closed) => break,
             Err(RecvError::Lagged(_)) => continue,
         }
-    }
-}
-
-async fn reload_geojson(geo: Arc<ArcSwap<String>>) {
-    loop {
-        // every hour
-        sleep(Duration::from_secs(60 * 60)).await;
-        println!("reloading geojson");
-        match get_geo().await {
-            Ok(new) => geo.swap(Arc::new(new)),
-            Err(err) => {
-                println!("error getting geojson: {err}");
-                continue;
-            }
-        };
     }
 }
 
