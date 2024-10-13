@@ -57,8 +57,7 @@ fn location_editor(key: &'static str) {
                 create_signal(cx, format!("{year:0>4}-{month:0>2}-{day:0>2}"))
             };
 
-            // let check_day = create_ref(cx, |k: &Address| &*current_day.get() == &k.day);
-            let check_day = create_ref(cx, |k: &Address| true);
+            let check_day = create_ref(cx, |k: &Address| &*current_day.get() == &k.day);
 
             let old_values = create_memo(cx, || {
                 data.get()
@@ -201,7 +200,7 @@ fn location_editor(key: &'static str) {
                                 }
                                 let edit = AtomicEdit{
                                     key: postcard::to_stdvec(&Address{
-                                        // day: current_day.get().as_ref().clone(),
+                                        day: current_day.get().as_ref().clone(),
                                         time: current_time.get().as_ref().clone(),
                                         fox_name: name.trim().to_string()
                                     }).unwrap(),
@@ -218,7 +217,7 @@ fn location_editor(key: &'static str) {
                             }
                             for name in new_fox.get().split(',') {
                                 let address = Address{
-                                    // day: current_day.get().as_ref().clone(),
+                                    day: current_day.get().as_ref().clone(),
                                     time: current_time.get().as_ref().clone(),
                                     fox_name: name.trim().to_string()
                                 };
