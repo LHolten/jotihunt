@@ -1,6 +1,7 @@
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
+use jotihunt_shared::domain::SavedArticle;
+use serde::Deserialize;
 use sled::Db;
 use tokio::time::sleep;
 
@@ -20,13 +21,6 @@ struct Article {
 
 #[derive(Deserialize)]
 struct Message {
-    content: String,
-}
-
-#[derive(Serialize)]
-struct SavedArticle {
-    title: String,
-    r#type: String,
     content: String,
 }
 

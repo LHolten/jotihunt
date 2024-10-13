@@ -1,3 +1,5 @@
+pub mod domain;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]

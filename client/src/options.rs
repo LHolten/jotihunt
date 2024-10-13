@@ -8,11 +8,11 @@ use gloo::{
     timers::future::TimeoutFuture,
     utils::document,
 };
-use jotihunt_shared::Traccar;
+use jotihunt_shared::{domain::Fox, Traccar};
 use mk_geolocation::{future::PositionStream, PositionOptions};
 use sycamore::{futures::spawn_local_scoped, prelude::*};
 
-use crate::{leaflet::Marker, state::Fox, HOSTNAME, WS_PROTOCOL};
+use crate::{leaflet::Marker, HOSTNAME, WS_PROTOCOL};
 
 pub fn option_panel(key: &'static str) {
     let panel = document()

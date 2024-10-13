@@ -1,17 +1,27 @@
-use crate::{
-    leaflet::Marker,
-    state::{Address, Fox},
+use std::collections::BTreeMap;
+
+use crate::leaflet::Marker;
+use crate::{HOSTNAME, WS_PROTOCOL};
+use futures::{
+    self,
+    channel::mpsc::{self, UnboundedSender},
+    future, StreamExt, TryStreamExt,
 };
-use futures::{self, channel::mpsc, future, StreamExt, TryStreamExt};
 use gloo::{
     dialogs::alert,
     net::websocket::{futures::WebSocket, Message},
 };
+use jotihunt_shared::domain::Fox;
 use jotihunt_shared::{AtomicEdit, Broadcast};
 use js_sys::Date;
-use sycamore::reactive::Signal;
+use serde::de::DeserializeOwned;
+use sycamore::{
+    futures::spawn_local_scoped,
+    prelude::{create_ref, create_signal, BoundedScope, ReadSignal},
+    reactive::Signal,
+};
 
-pub(crate) async fn write_data(
+async fn write_data(
     queue_read: mpsc::UnboundedReceiver<AtomicEdit>,
     write: futures::stream::SplitSink<WebSocket, Message>,
 ) {
@@ -24,21 +34,24 @@ pub(crate) async fn write_data(
         .await;
 }
 
-pub(crate) async fn read_data(
+async fn read_data<K, V>(
     read: futures::stream::SplitStream<WebSocket>,
-    data: &Signal<std::collections::BTreeMap<Address, Fox>>,
-) {
+    data: &Signal<std::collections::BTreeMap<K, V>>,
+) where
+    K: DeserializeOwned + Clone + Ord,
+    V: DeserializeOwned + Clone,
+{
     let _ = read
         .try_for_each(|msg| match msg {
             Message::Text(_) => panic!("we want bytes"),
             Message::Bytes(bin) => {
                 let broadcast: Broadcast = postcard::from_bytes(&bin).unwrap();
-                let key: Address = postcard::from_bytes(&broadcast.key).unwrap();
+                let key: K = postcard::from_bytes(&broadcast.key).unwrap();
 
                 if broadcast.value.is_empty() {
                     data.modify().remove(&key);
                 } else {
-                    let fox: Fox = postcard::from_bytes(&broadcast.value).unwrap();
+                    let fox: V = postcard::from_bytes(&broadcast.value).unwrap();
                     data.modify().insert(key.clone(), fox);
                 }
                 future::ok(())
@@ -52,6 +65,31 @@ pub(crate) async fn read_data(
         {local_time}"
     );
     alert(&msg)
+}
+
+pub fn live_updated<'cx, K, V>(
+    cx: BoundedScope<'cx, 'cx>,
+    key: &str,
+    name: &str,
+) -> (
+    &'cx ReadSignal<BTreeMap<K, V>>,
+    &'cx UnboundedSender<AtomicEdit>,
+)
+where
+    K: DeserializeOwned + Clone + Ord,
+    V: DeserializeOwned + Clone,
+{
+    let data = create_signal(cx, BTreeMap::<K, V>::new());
+
+    let ws_address = format!("{WS_PROTOCOL}://{HOSTNAME}/{key}/{name}");
+    let ws = WebSocket::open(&ws_address).unwrap();
+
+    let (write, read) = ws.split();
+    let (queue_write, queue_read) = mpsc::unbounded();
+
+    spawn_local_scoped(cx, write_data(queue_read, write));
+    spawn_local_scoped(cx, read_data(read, data));
+    (data, create_ref(cx, queue_write))
 }
 
 // creates a marker if both coordinates are valid

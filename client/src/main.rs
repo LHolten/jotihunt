@@ -1,17 +1,15 @@
 use std::{collections::BTreeMap, rc::Rc, time::Duration};
 
-use futures::{channel::mpsc, SinkExt, StreamExt};
-use gloo::{
-    dialogs::alert,
-    net::{http::Request, websocket::futures::WebSocket},
-    timers::future::sleep,
-    utils::document,
+use comms::live_updated;
+use futures::SinkExt;
+use gloo::{dialogs::alert, net::http::Request, timers::future::sleep, utils::document};
+use jotihunt_shared::{
+    domain::{ArticleKey, Fox, FoxKey, SavedArticle, StatusKey},
+    AtomicEdit,
 };
-use jotihunt_shared::AtomicEdit;
 use js_sys::Date;
 use leaflet::Line;
 use options::option_panel;
-use state::{Address, Fox};
 use sycamore::{
     futures::{spawn_local, spawn_local_scoped},
     prelude::*,
@@ -20,7 +18,6 @@ use sycamore::{
 mod comms;
 mod leaflet;
 mod options;
-mod state;
 
 const HOSTNAME: &str = "server.lucasholten.com:4848";
 const WS_PROTOCOL: &str = "wss";
@@ -33,19 +30,9 @@ fn location_editor(key: &'static str) {
 
     sycamore::render_to(
         |cx| {
-            let data = create_signal(cx, BTreeMap::<Address, Fox>::new());
-
-            let queue_write = {
-                let ws_address = format!("{WS_PROTOCOL}://{HOSTNAME}/{key}/locations");
-                let ws = WebSocket::open(&ws_address).unwrap();
-
-                let (write, read) = ws.split();
-                let (queue_write, queue_read) = mpsc::unbounded();
-
-                spawn_local_scoped(cx, comms::write_data(queue_read, write));
-                spawn_local_scoped(cx, comms::read_data(read, data));
-                create_ref(cx, queue_write)
-            };
+            let (data, queue_write) = live_updated::<FoxKey, Fox>(cx, key, "locations");
+            let (status, _) = live_updated::<StatusKey, String>(cx, key, "status");
+            let (articles, _) = live_updated::<ArticleKey, SavedArticle>(cx, key, "articles");
 
             let current_time = create_signal(cx, String::new());
 
@@ -57,7 +44,7 @@ fn location_editor(key: &'static str) {
                 create_signal(cx, format!("{year:0>4}-{month:0>2}-{day:0>2}"))
             };
 
-            let check_day = create_ref(cx, |k: &Address| &*current_day.get() == &k.day);
+            let check_day = create_ref(cx, |k: &FoxKey| &*current_day.get() == &k.day);
 
             let old_values = create_memo(cx, || {
                 data.get()
@@ -198,7 +185,7 @@ fn location_editor(key: &'static str) {
                                 if name.trim().is_empty() {
                                     continue;
                                 }
-                                let address = Address{
+                                let address = FoxKey{
                                     day: current_day.get().as_ref().clone(),
                                     time: current_time.get().as_ref().clone(),
                                     fox_name: name.trim().to_string()
@@ -217,7 +204,7 @@ fn location_editor(key: &'static str) {
                                 return;
                             }
                             for name in new_fox.get().split(',') {
-                                let address = Address{
+                                let address = FoxKey{
                                     day: current_day.get().as_ref().clone(),
                                     time: current_time.get().as_ref().clone(),
                                     fox_name: name.trim().to_string()
