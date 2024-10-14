@@ -60,6 +60,7 @@
 
               locations."/" = {
                 proxyPass = "http://127.0.0.1:4848";
+                proxyWebsockets = true;
               };
             };
           };
