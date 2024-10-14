@@ -52,8 +52,6 @@
           users.groups.jotihunt = {};
 
           services.nginx = {
-            recommendedProxySettings = true;
-
             virtualHosts."jotihunt.lucasholten.com" = {
               enableACME = true;
               forceSSL = true;
@@ -61,6 +59,13 @@
               locations."/" = {
                 proxyPass = "http://127.0.0.1:4848";
                 proxyWebsockets = true;
+                recommendedProxySettings = true;
+
+                extraConfig = ''
+                  proxy_connect_timeout 7d;
+                  proxy_send_timeout 7d;
+                  proxy_read_timeout 7d;
+                '';
               };
             };
           };

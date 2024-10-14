@@ -173,8 +173,8 @@ async fn accept_connection(stream: WebSocket, db: &Tree) -> anyhow::Result<()> {
             let edit: AtomicEdit = postcard::from_bytes(&bin)?;
             let new = edit.new.is_empty().not().then_some(edit.new);
             let old = edit.old.is_empty().not().then_some(edit.old);
-            println!("received(bin): {:?}", bin);
-            println!("received: {:?}, {:?}, {:?}", edit.key, old, new);
+            // println!("received(bin): {:?}", bin);
+            // println!("received: {:?}, {:?}, {:?}", edit.key, old, new);
 
             let _ = db.compare_and_swap(edit.key, old, new).unwrap();
             Ok(())
@@ -202,13 +202,15 @@ async fn accept_connection(stream: WebSocket, db: &Tree) -> anyhow::Result<()> {
             value: value.as_ref().to_owned(),
         })
         .unwrap();
-        println!("sending: {:?}", bin);
+        // println!("sending: {:?}", bin);
         Ok(Message::Binary(bin))
     })
     .forward(write);
 
     pin_mut!(receive_edits, send_edits);
     future::select(receive_edits, send_edits).await;
+
+    println!("client disconnected");
 
     Ok(())
 }
