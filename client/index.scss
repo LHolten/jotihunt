@@ -45,6 +45,19 @@ input[updated=false] {
     z-index: -1;
 }
 
+#page {
+    z-index: -2;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+img {
+    max-width: 100%;
+    height: auto;
+}
+
 * {
     box-sizing: border-box;
 }

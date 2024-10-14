@@ -4,7 +4,7 @@ use comms::live_updated;
 use futures::SinkExt;
 use gloo::{dialogs::alert, net::http::Request, timers::future::sleep, utils::document};
 use jotihunt_shared::{
-    domain::{ArticleKey, Fox, FoxKey, SavedArticle, StatusKey},
+    domain::{Fox, FoxKey, StatusKey},
     AtomicEdit,
 };
 use js_sys::Date;
@@ -15,6 +15,7 @@ use sycamore::{
     prelude::*,
 };
 
+mod articles;
 mod comms;
 mod leaflet;
 mod options;
@@ -32,7 +33,6 @@ fn location_editor(key: &'static str) {
         |cx| {
             let (data, queue_write) = live_updated::<FoxKey, Fox>(cx, key, "locations");
             let (status, _) = live_updated::<StatusKey, String>(cx, key, "status");
-            let (articles, _) = live_updated::<ArticleKey, SavedArticle>(cx, key, "articles");
 
             let current_time = create_signal(cx, String::new());
 
@@ -239,6 +239,7 @@ fn main() {
 
         location_editor(key);
         option_panel(key);
+        articles::articles(key);
     });
 }
 
