@@ -1,40 +1,33 @@
 {
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
-    naersk.url = "github:nix-community/naersk";
+    crane.url = "github:ipetkov/crane";
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    nixpkgs-mozilla = {
-      url = "github:mozilla/nixpkgs-mozilla";
-      flake = false;
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
-  outputs = { self, flake-utils, naersk, nixpkgs, nixpkgs-mozilla }:
+  outputs = { self, flake-utils, rust-overlay, crane, nixpkgs }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = (import nixpkgs) {
+        pkgs = import nixpkgs {
           inherit system;
-
-          overlays = [
-            (import nixpkgs-mozilla)
-          ];
+          overlays = [ (import rust-overlay) ];
         };
 
-        toolchain = (pkgs.rustChannelOf {
-          date = "2024-07-25"; # 1.80.0
-          channel = "stable";
-          sha256 = "sha256-6eN/GKzjVSjEhGO9FhWObkRFaE1Jf+uqMSdQnb8lcB4=";
-        }).rust;
+        craneLib = (crane.mkLib pkgs).overrideToolchain (p: p.rust-bin.stable.latest.default );
+        
+        server = craneLib.buildPackage {
+          pname = "jotihunt";
+          version = "0.1.0";
+          src = craneLib.cleanCargoSource ./.;
+          strictDeps = true;
 
-        naersk' = pkgs.callPackage naersk {
-          cargo = toolchain;
-          rustc = toolchain;
-        };
-
-        server = naersk'.buildPackage {
           nativeBuildInputs = with pkgs; [ pkg-config rustPlatform.bindgenHook ];
           buildInputs = with pkgs; [ openssl ];
-          src = ./server;
+          cargoExtraArgs = "-p server";
         };
       in {
         # For `nix build` & `nix run`:
@@ -44,7 +37,7 @@
           systemd.services.jotihunt = {
             wantedBy = [ "multi-user.target" ];
             serviceConfig = {
-              ExecStart = "${server}/bin/jotihunt-server";
+              ExecStart = "${server}/bin/server";
               User = "jotihunt";
               Group = "jotihunt";
               WorkingDirectory = "/var/lib/jotihunt";
