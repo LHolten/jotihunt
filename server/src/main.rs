@@ -64,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
     let live = leak(broadcast::channel(16).0);
 
     let geojson = get_reloading_geojson().await;
-    tokio::spawn(retrieve_status_loop(db));
+    let fox_list = retrieve_status_loop(db).await;
     tokio::spawn(retrieve_articles_loop(db));
 
     let router = Router::new()
@@ -126,6 +126,11 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/deelnemers.geojson",
             get(move || async move { geojson.load().as_ref().clone() })
+                .route_layer(CorsLayer::very_permissive()),
+        )
+        .route(
+            "/fox_list.json",
+            get(move || async move { fox_list.load().as_ref().clone() })
                 .route_layer(CorsLayer::very_permissive()),
         );
 
