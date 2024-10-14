@@ -1,3 +1,4 @@
 [workspace]
 members = ["shared", "server"]
+exclude = ["client"]
 resolver = "2"

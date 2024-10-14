@@ -2,7 +2,13 @@ mod article;
 mod geojson;
 mod status;
 
-use std::{net::SocketAddr, ops::Not, time::Duration};
+use std::{
+    fs::{read_to_string, File},
+    io::Write,
+    net::SocketAddr,
+    ops::Not,
+    time::Duration,
+};
 
 use article::retrieve_articles_loop;
 use async_stream::stream;
@@ -38,17 +44,18 @@ struct Args {
     /// Name of the server certificate to load for TLS
     #[arg(short, long)]
     domain: Option<String>,
-
-    /// The password to use for the authentication
-    #[arg(short, long)]
-    password: String,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = leak(Args::parse());
 
-    println!("password is: {}", args.password);
+    if let Ok(mut file) = File::create_new("password") {
+        write!(&mut file, "test").unwrap();
+    }
+    let password = read_to_string("password").unwrap();
+
+    println!("password is: {}", password);
     let secret = Uuid::new_v4();
 
     let db = leak(sled::open("joti.db").unwrap());
@@ -65,7 +72,7 @@ async fn main() -> anyhow::Result<()> {
             "/secret",
             get(move || async move { secret.to_string() })
                 .route_layer(CorsLayer::very_permissive())
-                .layer(ValidateRequestHeaderLayer::basic("", &args.password)),
+                .layer(ValidateRequestHeaderLayer::basic("", &password)),
         )
         .nest(
             "/:key",

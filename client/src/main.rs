@@ -20,7 +20,7 @@ mod comms;
 mod leaflet;
 mod options;
 
-const HOSTNAME: &str = "server.lucasholten.com:4848";
+const HOSTNAME: &str = "jotihunt.lucasholten.com";
 const WS_PROTOCOL: &str = "wss";
 const HTTP_PROTOCOL: &str = "https";
 
