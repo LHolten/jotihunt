@@ -24,7 +24,7 @@ const HOSTNAME: &str = "jotihunt.lucasholten.com";
 const WS_PROTOCOL: &str = "wss";
 const HTTP_PROTOCOL: &str = "https";
 
-fn location_editor(key: &'static str) {
+fn location_editor(key: &'static str, fox_names: &[String]) {
     let coord_editor = document()
         .get_element_by_id("coord_editor")
         .expect("there is a add_point button");
@@ -89,7 +89,7 @@ fn location_editor(key: &'static str) {
                 create_memo(cx, || lines.get());
             }
 
-            let new_fox = create_signal(cx, "".to_owned());
+            let new_fox = create_signal(cx, fox_names[0].clone());
 
             let slice_names = create_memo(cx, || {
                 let mut names: Vec<_> = data
@@ -103,101 +103,133 @@ fn location_editor(key: &'static str) {
                 names
             });
 
+            let area = create_signal(cx, fox_names[0].clone());
+
+            let fox_options = move || {
+                View::new_fragment(
+                    fox_names
+                        .iter()
+                        .map(|name| {
+                            let name = create_ref(cx, name.clone());
+                            view! {cx, option(value=*name){(*name)}}
+                        })
+                        .collect::<Vec<_>>(),
+                )
+            };
+            let fox_options_clone = fox_options();
+            let fox_options = fox_options();
+
+            let hunt_coord = create_signal(cx, String::new());
+
             view! {cx,
                 summary {"Coordinaten"}
                 div(class="field") {
-                    label(for="time_stamp"){"Tijdstip:  "}
-                    select(id="time_stamp", bind:value=current_time) {
-                        Keyed(
-                            iterable=slice_names,
-                            view=move |cx, key| {
-                                let key = create_ref(cx, key);
-                                let selected = key == current_time.get().as_ref();
-                                view!{cx, option(value=*key, selected=selected){(*key)}}
-                            },
-                            key=|key| key.clone(),
-                        )
-                    }
-                    input(type="date", bind:value=current_day)
+                    input(bind:value=hunt_coord, placeholder="xxxx, yyyy of 51.xxx, 4.yyy")
                 }
-                Keyed(
-                    iterable=old_values,
-                    view=move|cx, (key, fox)| {
-                        let (key2, fox2) = (key.clone(), fox.clone());
-                        let fox2 = create_ref(cx, fox2);
-                        let latitude = create_signal(cx, fox.latitude);
-                        let longitude = create_signal(cx, fox.longitude);
-                        let send_update = create_ref(cx, move || {
-                            let edit = AtomicEdit{
-                                key: postcard::to_stdvec(&key2).unwrap(),
-                                old: postcard::to_stdvec(fox2).unwrap(),
-                                new: postcard::to_stdvec(&Fox{
-                                    latitude: latitude.get().as_ref().trim().to_string(),
-                                    longitude: longitude.get().as_ref().trim().to_string()
-                                }).unwrap(),
-                            };
-                            spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
-                        });
-                        view!{cx,
-                            div(class="field") {
-                                input(type="button", value=(key.fox_name.clone()), on:click=move |_|{
-                                    if let Some(marker) = comms::make_marker(
-                                        &Fox {
-                                            latitude: latitude.get().as_ref().trim().to_string(),
-                                            longitude: longitude.get().as_ref().trim().to_string(),
-                                        },
-                                        "zoom",
-                                    ) {
-                                        marker.set_color("grey");
-                                        marker.zoom_to();
-                                        spawn_local_scoped(cx, async {
-                                            sleep(Duration::from_secs(1)).await;
-                                            drop(marker)
-                                        });
-                                    }
-                                })
-                                input(size=7, bind:value=latitude, placeholder="xxxx", updated={
-                                    latitude.get().as_ref()==&fox2.latitude
-                                }, on:change=move |_|{
-                                    send_update();
-                                })
-                                input(size=7, bind:value=longitude, placeholder="yyyy", updated={
-                                    longitude.get().as_ref()==&fox2.longitude
-                                }, on:change=move |_|{
-                                    send_update();
-                                })
-                            }
+                div(class="field") {
+                    select(bind:value=area) {(fox_options)}
+                    input(type="time", bind:value=current_time)
+                    input(type="button", value="Toevoegen", on:click=move|_| {
+                        let hunt_coord = hunt_coord.get();
+                        if current_time.get().is_empty() {
+                            alert("geen tijd geselecteerd");
+                            return
                         }
-                    },
-                    key=|(key, fox)| (key.clone(), fox.clone())
-                )
+                        if area.get().is_empty() {
+                            alert("geen vos geselecteerd");
+                            return
+                        }
+                        let Some((lat, long)) = hunt_coord.split_once(',') else {
+                            alert("coordinaat heeft geen comma");
+                            return
+                        };
+                        let edit = AtomicEdit{
+                            key: postcard::to_stdvec(&FoxKey {
+                                day: current_day.get().as_ref().clone(),
+                                time: current_time.get().as_ref().clone(),
+                                fox_name: area.get().as_ref().clone(),
+                            }).unwrap(),
+                            old: Vec::new(),
+                            new: postcard::to_stdvec(&Fox{
+                                latitude: lat.trim().to_string(),
+                                longitude: long.trim().to_string()
+                            }).unwrap(),
+                        };
+                        spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
+                    })
+                }
+
                 details {
-                    summary {"Tijdstippen en Vossen bewerken"}
-                    div(class="field"){
-                        input(type="time", bind:value=current_time)
-                        input(size=15, bind:value=new_fox, placeholder="alpha, bravo, charlie")
-                        input(type="button", value="Toevoegen", on:click=move |_|{
-                            if current_time.get().is_empty() {
-                                alert("Selecteer eerst een tijdstip");
-                                return;
-                            }
-                            for name in new_fox.get().split(',') {
-                                if name.trim().is_empty() {
-                                    continue;
-                                }
-                                let address = FoxKey{
-                                    day: current_day.get().as_ref().clone(),
-                                    time: current_time.get().as_ref().clone(),
-                                    fox_name: name.trim().to_string()
-                                };
+                    summary {"Bewerken"}
+                    div(class="field") {
+                        select(bind:value=current_time) {
+                            Keyed(
+                                iterable=slice_names,
+                                view=move |cx, key| {
+                                    let key = create_ref(cx, key);
+                                    let selected = key == current_time.get().as_ref();
+                                    view!{cx, option(value=*key, selected=selected){(*key)}}
+                                },
+                                key=|key| key.clone(),
+                            )
+                        }
+                        input(type="date", bind:value=current_day)
+                    }
+                    hr()
+                    Keyed(
+                        iterable=old_values,
+                        view=move|cx, (key, fox)| {
+                            let (key2, fox2) = (key.clone(), fox.clone());
+                            let fox2 = create_ref(cx, fox2);
+                            let latitude = create_signal(cx, fox.latitude);
+                            let longitude = create_signal(cx, fox.longitude);
+                            let send_update = create_ref(cx, move || {
                                 let edit = AtomicEdit{
-                                    key: postcard::to_stdvec(&address).unwrap(),
-                                    old: vec![],
-                                    new: postcard::to_stdvec(&Fox::default()).unwrap()
+                                    key: postcard::to_stdvec(&key2).unwrap(),
+                                    old: postcard::to_stdvec(fox2).unwrap(),
+                                    new: postcard::to_stdvec(&Fox{
+                                        latitude: latitude.get().as_ref().trim().to_string(),
+                                        longitude: longitude.get().as_ref().trim().to_string()
+                                    }).unwrap(),
                                 };
                                 spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
+                            });
+                            view!{cx,
+                                div(class="field") {
+                                    input(type="button", value=(key.fox_name.clone()), on:click=move |_|{
+                                        if let Some(marker) = comms::make_marker(
+                                            &Fox {
+                                                latitude: latitude.get().as_ref().trim().to_string(),
+                                                longitude: longitude.get().as_ref().trim().to_string(),
+                                            },
+                                            "zoom",
+                                        ) {
+                                            marker.set_color("grey");
+                                            marker.zoom_to();
+                                            spawn_local_scoped(cx, async {
+                                                sleep(Duration::from_secs(1)).await;
+                                                drop(marker)
+                                            });
+                                        }
+                                    })
+                                    input(size=7, bind:value=latitude, placeholder="xxxx", updated={
+                                        latitude.get().as_ref()==&fox2.latitude
+                                    }, on:change=move |_|{
+                                        send_update();
+                                    })
+                                    input(size=7, bind:value=longitude, placeholder="yyyy", updated={
+                                        longitude.get().as_ref()==&fox2.longitude
+                                    }, on:change=move |_|{
+                                        send_update();
+                                    })
+                                }
                             }
-                        })
+                        },
+                        key=|(key, fox)| (key.clone(), fox.clone())
+                    )
+                    hr()
+                    div(class="field"){
+                        select(bind:value=new_fox) {(fox_options_clone)}
                         input(type="button", value="Verwijderen", on:click=move |_|{
                             if current_time.get().is_empty() {
                                 alert("Selecteer eerst een tijdstip");
@@ -237,7 +269,16 @@ fn main() {
         let key = res.unwrap().text().await.unwrap();
         let key = Box::leak(key.into_boxed_str());
 
-        location_editor(key);
+        let fox_names: Vec<String> =
+            gloo::net::http::Request::get(&format!("{HTTP_PROTOCOL}://{HOSTNAME}/fox_list.json"))
+                .send()
+                .await
+                .unwrap()
+                .json()
+                .await
+                .unwrap();
+
+        location_editor(key, &fox_names);
         option_panel(key);
         articles::articles(key);
     });
