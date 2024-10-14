@@ -28,6 +28,7 @@ pub fn articles(key: &'static str) {
                     .filter_map(|(k, v)| {
                         (*everything.get() || &v.r#type == "hint").then_some((k.clone(), v.clone()))
                     })
+                    .rev()
                     .collect::<Vec<_>>()
             });
 
