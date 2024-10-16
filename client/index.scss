@@ -13,14 +13,19 @@ body {
     flex-direction: column;
     justify-content: end;
     font-size: larger;
+    color: white;
 }
 
 #panel_column>* {
     margin: 4px;
     // children of the panel column should be clickable again
     pointer-events: auto;
-    background-color: seagreen;
+    background-color: darkgreen;
     padding: 8px;
+}
+
+details details {
+    padding-top: 8px;
 }
 
 #option_panel {

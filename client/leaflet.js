@@ -43,7 +43,7 @@ function make_map() {
         attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    fetch("https://server.lucasholten.com:4848/deelnemers.geojson").then(res => res.json()).then(data => {
+    fetch("https://jotihunt.lucasholten.com/deelnemers.geojson").then(res => res.json()).then(data => {
         L.geoJSON(data, {
             pointToLayer: function (feature, latlng) {
                 return L.marker(latlng)
