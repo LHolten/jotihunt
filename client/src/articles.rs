@@ -14,7 +14,11 @@ use crate::comms::live_updated;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 enum Update {
-    Status { area: String, status: String },
+    Status {
+        area: String,
+        status: String,
+        until: Option<String>,
+    },
     Article(SavedArticle),
 }
 
@@ -22,12 +26,25 @@ impl Update {
     pub fn view<'cx>(self, time: String, cx: BoundedScope<'cx, 'cx>) -> view::View<DomNode> {
         let time_short = time.get(11..16).unwrap_or("").to_owned();
         match self {
-            Update::Status { area, status } => view! {cx,
-                p {
-                    time(datetime=time) {(time_short)} " "
-                    (area) " is " (status)
+            Update::Status {
+                area,
+                status,
+                until,
+            } => {
+                let extra = until
+                    .map(|x| {
+                        let diff = js_sys::Date::parse(&x) - js_sys::Date::parse(&time);
+                        let mins = (diff / 1000. / 60.) as u32;
+                        format!(" voor {mins}min")
+                    })
+                    .unwrap_or_default();
+                view! {cx,
+                    p {
+                        time(datetime=time) {(time_short)} " "
+                        (area) " is " (status) (extra)
+                    }
                 }
-            },
+            }
             Update::Article(article) => {
                 let title = article.title.clone();
                 view! {cx,
@@ -62,15 +79,23 @@ pub fn articles(key: &'static str) {
                     .filter(|(_, v)| *everything.get() || &v.r#type == "hint")
                     .map(|(k, v)| (k.publish_at.clone(), Update::Article(v.clone())));
                 let get = status.get();
-                let right = get.iter().filter(|_| *status_check.get()).map(|(k, v)| {
-                    (
-                        k.date_time.clone(),
-                        Update::Status {
-                            area: k.fox_name.clone(),
-                            status: v.clone(),
-                        },
-                    )
-                });
+                let right = get
+                    .iter()
+                    .filter(|(_, v)| *status_check.get() && *v != "green")
+                    .map(|(k, v)| {
+                        (
+                            k.date_time.clone(),
+                            Update::Status {
+                                area: k.fox_name.clone(),
+                                status: v.clone(),
+                                until: get
+                                    .range(k..)
+                                    .skip(1)
+                                    .find(|(k2, _)| k2.fox_name == k.fox_name)
+                                    .map(|(k2, _)| k2.date_time.clone()),
+                            },
+                        )
+                    });
 
                 let mut res =
                     MergeIter::with_custom_ordering(left, right, |a, b| a.0.cmp(&b.0).is_lt())
