@@ -22,7 +22,9 @@ struct Area {
 fn update_single_status(tree: &sled::Tree, area: Area) -> Result<(), postcard::Error> {
     let key = postcard::to_allocvec(&(&area.updated_at, &area.name))?;
     let value = postcard::to_allocvec(&area.status)?;
-    let _ = tree.insert(&key, value).unwrap();
+    if tree.get(&key).unwrap().as_slice() != Some(&value).as_slice() {
+        let _old = tree.insert(&key, value).unwrap();
+    }
     Ok(())
 }
 

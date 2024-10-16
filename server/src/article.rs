@@ -31,7 +31,9 @@ fn update_single_article(tree: &sled::Tree, article: Article) -> Result<(), post
         r#type: article.r#type,
         content: article.message.content,
     })?;
-    let _ = tree.insert(&key, value).unwrap();
+    if tree.get(&key).unwrap().as_slice() != Some(&value).as_slice() {
+        let _old = tree.insert(&key, value).unwrap();
+    }
     Ok(())
 }
 
