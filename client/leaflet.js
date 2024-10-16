@@ -36,7 +36,12 @@ function make_map() {
     let map = L.map('map', {
         center: [52.1139, 5.8402],
         zoom: 10,
+        zoomControl: false,
     });
+
+    L.control.zoom({
+        position: 'bottomleft',
+    }).addTo(map);
 
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,

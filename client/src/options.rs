@@ -41,10 +41,8 @@ pub fn option_panel(key: &'static str) {
 
             view! {cx,
                 summary {"Opties"}
-                div() {
-                    "Deze url invullen in je traccar client:" br()
-                    "https://jotihunt.lucasholten.com/traccar"
-                }
+                div {"Deze url invullen in je traccar client:"}
+                pre {"https://jotihunt.lucasholten.com/traccar"}
                 div(class="field"){
                     label(for="traccar"){"Traccar bekijken:"}
                     input(id="traccar", type="checkbox", bind:checked=show_live)
