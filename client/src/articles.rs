@@ -1,13 +1,19 @@
-use gloo::utils::document;
+use std::cell::Cell;
+
+use gloo::{
+    dialogs::alert,
+    utils::{document, window},
+};
 use jotihunt_shared::domain::{ArticleKey, SavedArticle, StatusKey};
 use merging_iterator::MergeIter;
 use sycamore::{
     builder::tag,
     flow::Keyed,
-    prelude::{create_memo, create_signal, BoundedScope},
+    prelude::{create_effect, create_memo, create_ref, create_signal, BoundedScope},
     view,
     web::DomNode,
 };
+use wasm_bindgen::JsValue;
 use web_sys::Element;
 
 use crate::comms::live_updated;
@@ -23,7 +29,7 @@ enum Update {
 }
 
 impl Update {
-    pub fn view<'cx>(self, time: String, cx: BoundedScope<'cx, 'cx>) -> view::View<DomNode> {
+    fn view<'cx>(self, time: String, cx: BoundedScope<'cx, 'cx>) -> view::View<DomNode> {
         let time_short = time.get(11..16).unwrap_or("").to_owned();
         match self {
             Update::Status {
@@ -61,6 +67,18 @@ impl Update {
                     }
                 }
             }
+        }
+    }
+
+    fn kind(&self) -> &str {
+        match self {
+            Update::Status { .. } => "nieuwe status",
+            Update::Article(saved_article) => match &*saved_article.r#type {
+                "hint" => "nieuwe hint",
+                "assignment" => "nieuwe opdracht",
+                "news" => "nieuw bericht",
+                x => x,
+            },
         }
     }
 }
@@ -108,6 +126,17 @@ pub fn articles(key: &'static str) {
                         .collect::<Vec<_>>();
                 res.reverse();
                 res
+            });
+
+            let last_updated = create_ref(cx, Cell::new(js_sys::Date::now()));
+            create_effect(cx, || {
+                if let Some((time, item)) = combined.get().last() {
+                    let most_recent = js_sys::Date::parse(time);
+                    if most_recent > last_updated.get() {
+                        last_updated.set(most_recent);
+                        notify(item);
+                    }
+                }
             });
 
             view! {cx,
@@ -178,4 +207,18 @@ fn update_page(time: &String, article: &SavedArticle) {
         },
         &page,
     )
+}
+
+fn notify(item: &Update) {
+    let kind = item.kind();
+    let _ = try_speak(&format!("{kind}"));
+    alert(&format!("Er is een {kind} op de tijdlijn!"));
+}
+
+fn try_speak(text: &str) -> Result<(), JsValue> {
+    let speech = window().speech_synthesis()?;
+    let utter = web_sys::SpeechSynthesisUtterance::new_with_text(text)?;
+    utter.set_lang("nl");
+    speech.speak(&utter);
+    Ok(())
 }

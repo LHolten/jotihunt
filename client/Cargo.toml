@@ -10,7 +10,7 @@ opt-level = 's'
 [dependencies]
 jotihunt-shared = { path = "../shared" }
 wasm-bindgen = { version = "0.2.83", default-features = false }
-web-sys = { version = "0.3.60", default-features = false }
+web-sys = { version = "0.3.60", default-features = false, features = ["SpeechSynthesisUtterance", "Window", "SpeechSynthesis"] }
 js-sys = { version = "0.3.60", default-features = false }
 sycamore = { version = "0.8.1", features = ["suspense", "web"], default-features = false }
 gloo = { version = "0.8.0", features = ["futures"] }
