@@ -38,6 +38,12 @@ impl Update {
                         format!(" voor {mins}min")
                     })
                     .unwrap_or_default();
+                let status = match &*status {
+                    "green" => "groen".to_owned(),
+                    "orange" => "oranje".to_owned(),
+                    "red" => "rood".to_owned(),
+                    _ => status,
+                };
                 view! {cx,
                     p {
                         time(datetime=time) {(time_short)} " "
