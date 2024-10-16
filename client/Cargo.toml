@@ -19,3 +19,4 @@ postcard = { version = "1.0.2", features = ["use-std"], default-features= false 
 futures = { version = "0.3.24", default-features = false }
 console_error_panic_hook = "0.1.7"
 mk-geolocation = {git = "https://gitlab.com/mkroehnert/mk-geolocation", features= ["futures"]}
+merging-iterator = "1.3.0"

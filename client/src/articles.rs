@@ -1,14 +1,46 @@
 use gloo::utils::document;
-use jotihunt_shared::domain::{ArticleKey, SavedArticle};
+use jotihunt_shared::domain::{ArticleKey, SavedArticle, StatusKey};
+use merging_iterator::MergeIter;
 use sycamore::{
     builder::tag,
     flow::Keyed,
-    prelude::{create_memo, create_ref, create_signal},
+    prelude::{create_memo, create_signal, BoundedScope},
     view,
+    web::DomNode,
 };
 use web_sys::Element;
 
 use crate::comms::live_updated;
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+enum Update {
+    Status { area: String, status: String },
+    Article(SavedArticle),
+}
+
+impl Update {
+    pub fn view<'cx>(self, time: String, cx: BoundedScope<'cx, 'cx>) -> view::View<DomNode> {
+        let time_short = time.get(11..16).unwrap_or("").to_owned();
+        match self {
+            Update::Status { area, status } => view! {cx,
+                p {
+                    time(datetime=time) {(time_short)} " "
+                    (area) " is " (status)
+                }
+            },
+            Update::Article(article) => {
+                let title = article.title.clone();
+                view! {cx,
+                    p {
+                        input (type="button", on:click = move |_| {
+                            update_page(&time, &article);
+                        }, value=(title))
+                    }
+                }
+            }
+        }
+    }
+}
 
 pub fn articles(key: &'static str) {
     let articles = document()
@@ -18,37 +50,48 @@ pub fn articles(key: &'static str) {
     sycamore::render_to(
         |cx| {
             let (articles, _) = live_updated::<ArticleKey, SavedArticle>(cx, key, "articles");
+            let (status, _) = live_updated::<StatusKey, String>(cx, key, "status");
 
+            let status_check = create_signal(cx, false);
             let everything = create_signal(cx, false);
 
-            let filtered = create_memo(cx, || {
-                articles
-                    .get()
+            let combined = create_memo(cx, || {
+                let get = articles.get();
+                let left = get
                     .iter()
-                    .filter_map(|(k, v)| {
-                        (*everything.get() || &v.r#type == "hint").then_some((k.clone(), v.clone()))
-                    })
-                    .rev()
-                    .collect::<Vec<_>>()
+                    .filter(|(_, v)| *everything.get() || &v.r#type == "hint")
+                    .map(|(k, v)| (k.publish_at.clone(), Update::Article(v.clone())));
+                let get = status.get();
+                let right = get.iter().filter(|_| *status_check.get()).map(|(k, v)| {
+                    (
+                        k.date_time.clone(),
+                        Update::Status {
+                            area: k.fox_name.clone(),
+                            status: v.clone(),
+                        },
+                    )
+                });
+
+                let mut res =
+                    MergeIter::with_custom_ordering(left, right, |a, b| a.0.cmp(&b.0).is_lt())
+                        .collect::<Vec<_>>();
+                res.reverse();
+                res
             });
 
             view! {cx,
-                summary {"Hints"}
+                summary {"Tijdlijn"}
                 div(class="field") {
-                    label(for="everything"){"Alles: "}
+                    label(for="everything"){"Berichten: "}
                     input(type="checkbox", id="everything", bind:checked=everything)
+
+                    label(for="status_check"){"Status: "}
+                    input(type="checkbox", id="status_check", bind:checked=status_check)
                 }
                 Keyed(
-                    iterable=filtered,
-                    view=move|cx, (key, article)| {
-                        let article = create_ref(cx, article);
-                        view!{cx,
-                            p {
-                                input (type="button", on:click = move |_| {
-                                    update_page(&key, article);
-                                }, value=(article.title))
-                            }
-                        }
+                    iterable=combined,
+                    view=move|cx, (time, update)| {
+                        update.view(time, cx)
                     },
                     key=|x|x.clone()
                 )
@@ -74,8 +117,8 @@ fn reset_page() {
     panel_column.remove_attribute("hidden").unwrap();
 }
 
-fn update_page(key: &ArticleKey, article: &SavedArticle) {
-    let (key, article) = (key.clone(), article.clone());
+fn update_page(time: &String, article: &SavedArticle) {
+    let (time, article) = (time.clone(), article.clone());
 
     let page = get_element("page");
     let map = get_element("map");
@@ -98,7 +141,7 @@ fn update_page(key: &ArticleKey, article: &SavedArticle) {
                     reset_page()
                 })
                 h1 {(article.title)}
-                time {(key.publish_at)}
+                time {(time)}
                 p {(content)}
             }
         },

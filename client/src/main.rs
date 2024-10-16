@@ -4,7 +4,7 @@ use comms::live_updated;
 use futures::SinkExt;
 use gloo::{dialogs::alert, net::http::Request, timers::future::sleep, utils::document};
 use jotihunt_shared::{
-    domain::{Fox, FoxKey, StatusKey},
+    domain::{Fox, FoxKey},
     AtomicEdit,
 };
 use js_sys::Date;
@@ -32,7 +32,6 @@ fn location_editor(key: &'static str, fox_names: &[String]) {
     sycamore::render_to(
         |cx| {
             let (data, queue_write) = live_updated::<FoxKey, Fox>(cx, key, "locations");
-            let (status, _) = live_updated::<StatusKey, String>(cx, key, "status");
 
             let current_time = create_signal(cx, String::new());
 
