@@ -62,6 +62,9 @@ function make_map() {
 }
 var map = make_map()
 
+let orga = add_marker(5.8725166117126575, 51.95402844147237, "orga", false);
+set_custom(orga, "/stikkerbuilding.png");
+
 proj4.defs("EPSG:7415", "+proj=sterea +lat_0=52.1561605555556 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +units=m +vunits=m +no_defs +type=crs");
 export function add_marker(lat, lng, name, convert) {
     let coord = [lat, lng];
@@ -93,11 +96,15 @@ export function set_marker_color(marker, color) {
 }
 
 export function set_human(marker) {
+    set_custom(marker, '/human.png')
+}
+
+function set_custom(marker, name) {
     let f = 0.75;
     let icon = new L.Icon({
-        iconUrl: `/human.png`,
-        iconSize: [35 * f, 41 * f],
-        iconAnchor: [12 * f, 41 * f],
+        iconUrl: name,
+        iconSize: [34 * f, 41 * f],
+        iconAnchor: [17 * f, 41 * f],
         popupAnchor: [1 * f, -34 * f],
         shadowSize: [41 * f, 41 * f]
     });
