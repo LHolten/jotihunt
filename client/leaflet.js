@@ -92,6 +92,18 @@ export function set_marker_color(marker, color) {
     marker.setIcon(icon);
 }
 
+export function set_human(marker) {
+    let f = 0.75;
+    let icon = new L.Icon({
+        iconUrl: `/human.png`,
+        iconSize: [35 * f, 41 * f],
+        iconAnchor: [12 * f, 41 * f],
+        popupAnchor: [1 * f, -34 * f],
+        shadowSize: [41 * f, 41 * f]
+    });
+    marker.setIcon(icon);
+}
+
 export function zoom_to(marker) {
     map.flyTo(marker.getLatLng())
 }
