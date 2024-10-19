@@ -21,7 +21,7 @@ pub fn option_panel(key: &'static str) {
 
     sycamore::render_to(
         |cx| {
-            let show_live = create_signal(cx, false);
+            let show_live = create_signal(cx, true);
 
             create_effect_scoped(cx, move |cx| {
                 if *show_live.get() {
