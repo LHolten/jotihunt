@@ -41,6 +41,8 @@ async fn get_geo() -> reqwest::Result<String> {
         ("Scoutinggroep de Markesteen", "Bravo"),
         ("Scouting Aerendheem", "Bravo"),
         ("St. Christoforus Lichtdraagsters Arnhem", "Bravo"),
+        ("Scouting Zetten", "Bravo"),
+        ("Scouting Valburg", "Bravo"),
         ("Karmijngroep Winssen", "Echo"),
         ("RDB", "Echo"),
         ("Scouting Beuningen '76", "Echo"),
@@ -51,6 +53,7 @@ async fn get_geo() -> reqwest::Result<String> {
         ("Scouting St. Franciscus", "Echo"),
         ("Castor creators", "Echo"),
         ("Scouting Grave en Boxmeer", "Echo"),
+        ("Scouting Woezik", "Echo"),
         ("Karel de Stoute", "Foxtrot"),
         ("Scouting Keizer Karel NIJMEGEN", "Foxtrot"),
         ("Scouting Paul Kruger", "Foxtrot"),
@@ -60,7 +63,8 @@ async fn get_geo() -> reqwest::Result<String> {
         ("Scouting Duiven", "Foxtrot"),
         ("Scouting Groessen en Vrienden", "Foxtrot"),
         ("Subliem Hunting Team", "Foxtrot"),
-        ("Subliem Hunting Team", "Foxtrot"),
+        ("Scouting Bemmel", "Foxtrot"),
+        ("St. Willibrordgroep Didam", "Foxtrot"),
     ]
     .into_iter()
     .map(|(a, b)| (a.to_owned(), b.to_owned()))
