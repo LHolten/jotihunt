@@ -234,19 +234,29 @@ fn location_editor(key: &'static str, fox_names: &[String]) {
                                 alert("Selecteer eerst een tijdstip");
                                 return;
                             }
-                            for name in new_fox.get().split(',') {
-                                let address = FoxKey{
-                                    day: current_day.get().as_ref().clone(),
-                                    time: current_time.get().as_ref().clone(),
-                                    fox_name: name.trim().to_string()
-                                };
-                                let edit = AtomicEdit{
-                                    key: postcard::to_stdvec(&address).unwrap(),
-                                    old: postcard::to_stdvec(&Fox::default()).unwrap(),
-                                    new: vec![]
-                                };
-                                spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
+                            let new_fox = new_fox.get();
+                            let old_values = old_values.get();
+                            let Some((_, old_value)) = old_values.iter().find(|x|&*x.0.fox_name == &*new_fox) else {
+                                alert("Er is geen coordinaat in dat deelgebied");
+                                return
+                            };
+
+                            if !old_value.latitude.is_empty() || !old_value.longitude.is_empty() {
+                                alert("Alleen lege coordinaten kunnen verwijderd worden");
+                                return;
                             }
+
+                            let address = FoxKey{
+                                day: current_day.get().as_ref().clone(),
+                                time: current_time.get().as_ref().clone(),
+                                fox_name: new_fox.to_string()
+                            };
+                            let edit = AtomicEdit{
+                                key: postcard::to_stdvec(&address).unwrap(),
+                                old: postcard::to_stdvec(&Fox::default()).unwrap(),
+                                new: vec![]
+                            };
+                            spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
                         })
                     }
                 }
