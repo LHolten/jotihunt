@@ -65,6 +65,18 @@ async fn get_geo() -> reqwest::Result<String> {
         ("Subliem Hunting Team", "Foxtrot"),
         ("Scouting Bemmel", "Foxtrot"),
         ("St. Willibrordgroep Didam", "Foxtrot"),
+        ("Scouting Kon-Tiki Putten", "Charlie"),
+        ("Alexandergroep", "Charlie"),
+        ("Irmin-Taweb", "Charlie"),
+        ("Verbraak Margriet Groep", "Charlie"),
+        ("Ragay Redoz", "Charlie"),
+        ("Scouting Nunspeet", "Charlie"),
+        ("Gustaaf Adolf Groep", "Charlie"),
+        ("Scouting de Trijsberg", "Charlie"),
+        ("Scouting Paulus & Petrus Dondersgroep", "Charlie"),
+        ("Scoutinggroep JJB", "Charlie"),
+        ("Sw3lbp", "Charlie"),
+        ("Ugchelse Woudlopers Gr2", "Charlie"),
     ]
     .into_iter()
     .map(|(a, b)| (a.to_owned(), b.to_owned()))
