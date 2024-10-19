@@ -30,7 +30,11 @@ enum Update {
 
 impl Update {
     fn view<'cx>(self, time: String, cx: BoundedScope<'cx, 'cx>) -> view::View<DomNode> {
-        let time_short = time.get(11..16).unwrap_or("").to_owned();
+        let date = js_sys::Date::new_0();
+        date.set_time(js_sys::Date::parse(&time));
+        let hours = date.get_hours();
+        let mins = date.get_minutes();
+        let time_short = format!("{hours:0>2}:{mins:0>2}");
         match self {
             Update::Status {
                 area,
@@ -58,11 +62,11 @@ impl Update {
                 }
             }
             Update::Article(article) => {
-                let title = article.title.clone();
+                let title = format!("{time_short}: {}", article.title);
                 view! {cx,
                     p {
                         input (type="button", on:click = move |_| {
-                            update_page(&time, &article);
+                            update_page(&article);
                         }, value=(title))
                     }
                 }
@@ -125,6 +129,7 @@ pub fn articles(key: &'static str) {
                     MergeIter::with_custom_ordering(left, right, |a, b| a.0.cmp(&b.0).is_lt())
                         .collect::<Vec<_>>();
                 res.reverse();
+                res.dedup();
                 res
             });
 
@@ -177,8 +182,8 @@ fn reset_page() {
     panel_column.remove_attribute("hidden").unwrap();
 }
 
-fn update_page(time: &String, article: &SavedArticle) {
-    let (time, article) = (time.clone(), article.clone());
+fn update_page(article: &SavedArticle) {
+    let article = article.clone();
 
     let page = get_element("page");
     let map = get_element("map");
@@ -201,7 +206,6 @@ fn update_page(time: &String, article: &SavedArticle) {
                     reset_page()
                 })
                 h1 {(article.title)}
-                time {(time)}
                 p {(content)}
             }
         },
