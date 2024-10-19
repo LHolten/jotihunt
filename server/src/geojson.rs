@@ -24,6 +24,9 @@ async fn get_geo() -> reqwest::Result<String> {
 
     let mut features = vec![];
     for group in sub.data {
+        if group.name.to_lowercase().contains("test") {
+            continue;
+        }
         features.push(json!({
             "type": "Feature",
             "geometry": {
