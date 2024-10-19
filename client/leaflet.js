@@ -51,6 +51,7 @@ function make_map() {
     fetch("https://jotihunt.lucasholten.com/deelnemers.geojson").then(res => res.json()).then(data => {
         L.geoJSON(data, {
             pointToLayer: function (feature, latlng) {
+                L.circle(latlng, { radius: 500, opacity: 0.1 }).addTo(map);
                 return L.marker(latlng)
                     .setIcon(make_icon(false, fox_color(feature.properties.area)))
                     .bindTooltip(feature.properties.name);
