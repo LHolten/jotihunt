@@ -57,7 +57,7 @@ pub async fn retrieve_articles_loop(db: &Db) {
             println!("error getting article: {err}");
         }
 
-        // every minute
-        sleep(Duration::from_secs(60)).await;
+        // every 5 seconds
+        sleep(Duration::from_secs(5)).await;
     }
 }
