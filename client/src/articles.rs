@@ -135,7 +135,7 @@ pub fn articles(key: &'static str) {
 
             let last_updated = create_ref(cx, Cell::new(js_sys::Date::now()));
             create_effect(cx, || {
-                if let Some((time, item)) = combined.get().last() {
+                if let Some((time, item)) = combined.get().first() {
                     let most_recent = js_sys::Date::parse(time);
                     if most_recent > last_updated.get() {
                         last_updated.set(most_recent);
