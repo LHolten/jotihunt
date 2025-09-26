@@ -51,7 +51,7 @@
               forceSSL = true;
 
               locations."/" = {
-                proxyPass = "unix:/run/jotihunt/socket";
+                proxyPass = "http://unix:/run/jotihunt/socket";
                 proxyWebsockets = true;
                 recommendedProxySettings = true;
 
