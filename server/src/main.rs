@@ -5,9 +5,7 @@ mod status;
 use std::{
     fs::{read_to_string, File},
     io::Write,
-    net::SocketAddr,
     ops::Not,
-    time::Duration,
 };
 
 use article::retrieve_articles_loop;
@@ -23,33 +21,18 @@ use axum::{
     routing::{any, get},
     Router,
 };
-use axum_server::tls_rustls::RustlsConfig;
-use clap::Parser;
 use futures_util::{future, pin_mut, StreamExt, TryStreamExt};
 use geojson::get_reloading_geojson;
 use jotihunt_shared::{AtomicEdit, Broadcast, Traccar};
 use sled::{Event, Tree};
 
 use status::retrieve_status_loop;
-use tokio::{
-    sync::broadcast::{self, error::RecvError},
-    time::sleep,
-};
-use tower::make::Shared;
+use tokio::sync::broadcast::{self, error::RecvError};
 use tower_http::{cors::CorsLayer, validate_request::ValidateRequestHeaderLayer};
 use uuid::Uuid;
 
-#[derive(Parser)]
-struct Args {
-    /// Name of the server certificate to load for TLS
-    #[arg(short, long)]
-    domain: Option<String>,
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let args = leak(Args::parse());
-
     if let Ok(mut file) = File::create_new("password") {
         write!(&mut file, "test").unwrap();
     }
@@ -75,7 +58,7 @@ async fn main() -> anyhow::Result<()> {
                 .layer(ValidateRequestHeaderLayer::basic("", &password)),
         )
         .nest(
-            "/:key",
+            "/{key}",
             Router::new()
                 .route(
                     "/locations",
@@ -134,23 +117,8 @@ async fn main() -> anyhow::Result<()> {
                 .route_layer(CorsLayer::very_permissive()),
         );
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 4848));
-
-    if let Some(domain) = &args.domain {
-        let config = RustlsConfig::from_pem_file(
-            format!("/etc/letsencrypt/live/{domain}/fullchain.pem"),
-            format!("/etc/letsencrypt/live/{domain}/privkey.pem"),
-        )
-        .await
-        .unwrap();
-
-        tokio::spawn(reload(config.clone(), domain));
-        axum_server::bind_rustls(addr, config)
-            .serve(Shared::new(router))
-            .await?;
-    } else {
-        axum_server::bind(addr).serve(Shared::new(router)).await?;
-    }
+    let listener = tokio::net::UnixListener::bind("/run/jotihunt.socket")?;
+    axum::serve(listener, router).await?;
 
     Ok(())
 }
@@ -208,7 +176,7 @@ async fn accept_connection(stream: WebSocket, db: &Tree) -> anyhow::Result<()> {
         })
         .unwrap();
         // println!("sending: {:?}", bin);
-        Ok(Message::Binary(bin))
+        Ok(Message::Binary(axum::body::Bytes::from_owner(bin)))
     })
     .forward(write);
 
@@ -220,21 +188,6 @@ async fn accept_connection(stream: WebSocket, db: &Tree) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn reload(config: RustlsConfig, domain: &str) {
-    loop {
-        sleep(Duration::from_secs(100_000)).await;
-        println!("reloading rustls configuration");
-
-        config
-            .reload_from_pem_file(
-                format!("/etc/letsencrypt/live/{domain}/fullchain.pem"),
-                format!("/etc/letsencrypt/live/{domain}/privkey.pem"),
-            )
-            .await
-            .unwrap();
-    }
-}
-
 type LiveReceiver = broadcast::Receiver<Traccar>;
 
 async fn live_ws(mut stream: WebSocket, mut live: LiveReceiver) {
@@ -242,7 +195,10 @@ async fn live_ws(mut stream: WebSocket, mut live: LiveReceiver) {
         match live.recv().await {
             Ok(traccar) => {
                 let bin = postcard::to_stdvec(&traccar).unwrap();
-                let Ok(()) = stream.send(Message::Binary(bin)).await else {
+                let Ok(()) = stream
+                    .send(Message::Binary(axum::body::Bytes::from_owner(bin)))
+                    .await
+                else {
                     break;
                 };
             }
