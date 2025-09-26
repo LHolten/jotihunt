@@ -3,9 +3,10 @@ mod geojson;
 mod status;
 
 use std::{
-    fs::{read_to_string, File},
+    fs::{read_to_string, set_permissions, File, Permissions},
     io::Write,
     ops::Not,
+    os::unix::fs::PermissionsExt,
 };
 
 use article::retrieve_articles_loop;
@@ -117,7 +118,9 @@ async fn main() -> anyhow::Result<()> {
                 .route_layer(CorsLayer::very_permissive()),
         );
 
-    let listener = tokio::net::UnixListener::bind("/run/jotihunt/socket")?;
+    let path = "/run/jotihunt/socket";
+    let listener = tokio::net::UnixListener::bind(path)?;
+    set_permissions(path, Permissions::from_mode(0o777))?;
     axum::serve(listener, router).await?;
 
     Ok(())
