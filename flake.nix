@@ -36,6 +36,7 @@
               WorkingDirectory = "/var/lib/jotihunt";
               StateDirectory = "jotihunt";
               RuntimeDirectory = "jotihunt";
+              RuntimeDirectoryMode = "0777";
             };
           };
 
