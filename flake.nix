@@ -4,33 +4,38 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
   };
 
-  outputs = { self, flake-utils, nixpkgs }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = import nixpkgs { inherit system; };
+  outputs = {
+    self,
+    flake-utils,
+    nixpkgs,
+  }:
+    flake-utils.lib.eachDefaultSystem (
+      system: let
+        pkgs = import nixpkgs {inherit system;};
 
         server = pkgs.rustPlatform.buildRustPackage {
-            pname = "jotihunt";
-            version = "0.1.0";
+          pname = "jotihunt";
+          version = "0.1.0";
 
-            cargoLock = {
-              lockFile = ./Cargo.lock;
-            };
-            src = ./.;
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+          };
+          src = ./.;
         };
       in {
         # For `nix build` & `nix run`:
         defaultPackage = server;
 
-        nixosModules.default = { ... }: {
+        nixosModules.default = {...}: {
           systemd.services.jotihunt = {
-            wantedBy = [ "multi-user.target" ];
+            wantedBy = ["multi-user.target"];
             serviceConfig = {
               ExecStart = "${server}/bin/server";
               User = "jotihunt";
               Group = "jotihunt";
               WorkingDirectory = "/var/lib/jotihunt";
               StateDirectory = "jotihunt";
+              RuntimeDirectory = "jotihunt";
             };
           };
 
@@ -46,7 +51,7 @@
               forceSSL = true;
 
               locations."/" = {
-                proxyPass = "unix:/run/jotihunt.socket";
+                proxyPass = "unix:/run/jotihunt/socket";
                 proxyWebsockets = true;
                 recommendedProxySettings = true;
 
@@ -62,7 +67,7 @@
 
         # For `nix develop`:
         devShell = pkgs.mkShell {
-          nativeBuildInputs = with pkgs; [ nixd ];
+          nativeBuildInputs = with pkgs; [nixd];
         };
       }
     );

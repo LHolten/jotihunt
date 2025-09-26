@@ -117,7 +117,7 @@ async fn main() -> anyhow::Result<()> {
                 .route_layer(CorsLayer::very_permissive()),
         );
 
-    let listener = tokio::net::UnixListener::bind("/run/jotihunt.socket")?;
+    let listener = tokio::net::UnixListener::bind("/run/jotihunt/socket")?;
     axum::serve(listener, router).await?;
 
     Ok(())
