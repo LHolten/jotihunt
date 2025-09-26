@@ -1,33 +1,22 @@
 {
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
-    crane.url = "github:ipetkov/crane";
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
-  outputs = { self, flake-utils, rust-overlay, crane, nixpkgs }:
+  outputs = { self, flake-utils, nixpkgs }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = import nixpkgs {
-          inherit system;
-          overlays = [ (import rust-overlay) ];
-        };
+        pkgs = import nixpkgs { inherit system; };
 
-        craneLib = (crane.mkLib pkgs).overrideToolchain (p: p.rust-bin.stable.latest.default );
-        
-        server = craneLib.buildPackage {
-          pname = "jotihunt";
-          version = "0.1.0";
-          src = craneLib.cleanCargoSource ./.;
-          strictDeps = true;
+        server = pkgs.rustPlatform.buildRustPackage {
+            pname = "jotihunt";
+            version = "0.1.0";
 
-          nativeBuildInputs = with pkgs; [ pkg-config rustPlatform.bindgenHook ];
-          buildInputs = with pkgs; [ openssl ];
-          cargoExtraArgs = "-p server";
+            cargoLock = {
+              lockFile = ./Cargo.lock;
+            };
+            src = ./.;
         };
       in {
         # For `nix build` & `nix run`:
@@ -44,7 +33,7 @@
               StateDirectory = "jotihunt";
             };
           };
-          
+
           users.users.jotihunt = {
             isSystemUser = true;
             group = "jotihunt";
@@ -73,7 +62,7 @@
 
         # For `nix develop`:
         devShell = pkgs.mkShell {
-          nativeBuildInputs = with pkgs; [ rustc cargo ];
+          nativeBuildInputs = with pkgs; [ nixd ];
         };
       }
     );
