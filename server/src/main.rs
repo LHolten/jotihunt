@@ -14,13 +14,13 @@ use async_stream::stream;
 use axum::{
     extract::{
         ws::{Message, WebSocket},
-        Path, Query, Request, WebSocketUpgrade,
+        Json, Path, Query, Request, WebSocketUpgrade,
     },
     http::StatusCode,
     middleware::Next,
     response::IntoResponse,
     routing::{any, get},
-    Router,
+    RequestExt, Router,
 };
 use futures_util::{future, pin_mut, StreamExt, TryStreamExt};
 use geojson::get_reloading_geojson;
@@ -102,8 +102,22 @@ async fn main() -> anyhow::Result<()> {
         )
         .route(
             "/traccar",
-            any(|traccar: Query<Traccar>| async {
-                let _ = live.send(traccar.0);
+            any(|mut req: Request| async {
+                let traccar = match req.extract_parts::<Query<Traccar>>().await {
+                    Ok(t) => t.0,
+                    Err(_e) => {
+                        let json: Json<NewTraccar> = match req.extract().await {
+                            Ok(v) => v,
+                            Err(e) => return e.into_response(),
+                        };
+                        Traccar {
+                            id: json.0.device_id,
+                            lat: json.0.location.coords.latitude.to_string(),
+                            lon: json.0.location.coords.longitude.to_string(),
+                        }
+                    }
+                };
+                let _ = live.send(traccar);
                 StatusCode::OK.into_response()
             }),
         )
@@ -124,6 +138,23 @@ async fn main() -> anyhow::Result<()> {
     axum::serve(listener, router).await?;
 
     Ok(())
+}
+
+#[derive(serde::Deserialize)]
+struct NewTraccar {
+    device_id: String,
+    location: NewLocation,
+}
+
+#[derive(serde::Deserialize)]
+struct NewLocation {
+    coords: NewCoords,
+}
+
+#[derive(serde::Deserialize)]
+struct NewCoords {
+    latitude: f64,
+    longitude: f64,
 }
 
 async fn accept_and_log(stream: WebSocket, db: &Tree) {
