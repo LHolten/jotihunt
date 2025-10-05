@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use arc_swap::ArcSwap;
 use serde::Deserialize;
@@ -21,66 +21,6 @@ struct Group {
 async fn get_geo() -> reqwest::Result<String> {
     let res = reqwest::get("https://jotihunt.nl/api/2.0/subscriptions").await?;
     let sub: Subscriptions = res.json().await?;
-    let map: HashMap<_, _> = vec![
-        ("Scouting de Paulus Dreumel", "Delta"),
-        ("Scouting Phoenix Tiel", "Delta"),
-        ("Scouting Graaf van Gelre Geldermalsen", "Delta"),
-        ("Sint Stanislaus", "Delta"),
-        ("Scouting Scherpenzeel e.o.", "Delta"),
-        ("Scouting Lunteren", "Delta"),
-        ("Scouting Jan Hilgers", "Delta"),
-        ("Tarcisius Ede / Nijkerk", "Delta"),
-        ("Scouting Langenberggroep Ede", "Delta"),
-        ("Scouting Bennekom", "Delta"),
-        ("Scouting Elst", "Bravo"),
-        ("Schutgraaf", "Bravo"),
-        ("KaLiG", "Bravo"),
-        ("Scoutinggroep Lido '76", "Bravo"),
-        ("Rhedense Pioniers", "Bravo"),
-        ("Scouting Dieren", "Bravo"),
-        ("Scoutinggroep de Markesteen", "Bravo"),
-        ("Scouting Aerendheem", "Bravo"),
-        ("St. Christoforus Lichtdraagsters Arnhem", "Bravo"),
-        ("Scouting Zetten", "Bravo"),
-        ("Scouting Valburg", "Bravo"),
-        ("Karmijngroep Winssen", "Echo"),
-        ("RDB", "Echo"),
-        ("Scouting Beuningen '76", "Echo"),
-        ("OPV Schoonoord", "Echo"),
-        ("De Geuzen Arnhem", "Echo"),
-        ("Andre de Thaye", "Echo"),
-        ("Velpsche Woudloopers", "Echo"),
-        ("Scouting St. Franciscus", "Echo"),
-        ("Castor creators", "Echo"),
-        ("Scouting Grave en Boxmeer", "Echo"),
-        ("Scouting Woezik", "Echo"),
-        ("Karel de Stoute", "Foxtrot"),
-        ("Scouting Keizer Karel NIJMEGEN", "Foxtrot"),
-        ("Scouting Paul Kruger", "Foxtrot"),
-        ("Scouting Amalgama", "Foxtrot"),
-        ("Bricks & Scouts", "Foxtrot"),
-        ("Scouting Dannenburcht", "Foxtrot"),
-        ("Scouting Duiven", "Foxtrot"),
-        ("Scouting Groessen en Vrienden", "Foxtrot"),
-        ("Subliem Hunting Team", "Foxtrot"),
-        ("Scouting Bemmel", "Foxtrot"),
-        ("St. Willibrordgroep Didam", "Foxtrot"),
-        ("Scouting Kon-Tiki Putten", "Charlie"),
-        ("Alexandergroep", "Charlie"),
-        ("Irmin-Taweb", "Charlie"),
-        ("Verbraak Margriet Groep", "Charlie"),
-        ("Ragay Redoz", "Charlie"),
-        ("Scouting Nunspeet", "Charlie"),
-        ("Gustaaf Adolf Groep", "Charlie"),
-        ("Scouting de Trijsberg", "Charlie"),
-        ("Scouting Paulus & Petrus Dondersgroep", "Charlie"),
-        ("Scoutinggroep JJB", "Charlie"),
-        ("Sw3lbp", "Charlie"),
-        ("Ugchelse Woudlopers Gr2", "Charlie"),
-    ]
-    .into_iter()
-    .map(|(a, b)| (a.to_owned(), b.to_owned()))
-    .collect();
 
     let mut features = vec![];
     for group in sub.data {
@@ -96,7 +36,7 @@ async fn get_geo() -> reqwest::Result<String> {
             },
             "properties": {
                 "name": group.name,
-                "area": map.get(&group.name),
+                "area": group.area,
             },
         }))
     }
