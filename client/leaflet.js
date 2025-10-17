@@ -19,11 +19,11 @@ function make_icon(large, color) {
 function fox_color(fox) {
     let color_map = {
         a: "violet",
-        b: "yellow",
-        c: "red",
-        d: "blue",
+        b: "red",
+        c: "yellow",
+        d: "black",
         e: "green",
-        f: "black",
+        f: "blue",
         g: "grey",
         h: "orange",
     };
@@ -63,7 +63,8 @@ function make_map() {
                     const icon = make_icon(false, color);
                     return L.marker(latlng)
                         .setIcon(icon)
-                        .bindTooltip(feature.properties.name);
+                        .bindTooltip(feature.properties.name)
+                        .bindPopup([latlng.lat, latlng.lng].toString());
                 },
             }).addTo(map);
         });
