@@ -9,6 +9,7 @@ extern "C" {
     fn remove_marker(marker: &JsMarker);
     fn set_marker_color(marker: &JsMarker, color: &str);
     fn set_human(marker: &JsMarker);
+    fn set_fox(marker: &JsMarker);
 
     fn zoom_to(marker: &JsMarker);
 
@@ -31,6 +32,9 @@ impl Marker {
     }
     pub fn set_human(&self) {
         set_human(&self.0)
+    }
+    pub fn set_fox(&self) {
+        set_fox(&self.0)
     }
     pub fn zoom_to(&self) {
         zoom_to(&self.0)
