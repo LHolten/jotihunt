@@ -43,7 +43,7 @@ input[updated=false] {
 
 #map {
     // this is necessary because it is not really placed inside the parent
-    height: 100vh;
+    height: 100dvh;
     width: 100vw;
     position: absolute;
     z-index: -1;
