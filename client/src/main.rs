@@ -75,13 +75,13 @@ fn location_editor(key: &'static str, fox_names: &[String]) {
                     for (time, fox) in points {
                         let name = format!("{} ({})", fox_name, time);
                         if let Some(marker) = comms::make_marker(&fox, &name) {
-                            marker.set_fox(false);
+                            marker.set_fox(true);
                             line.push(&marker);
                             markers.push(marker);
                         }
                     }
                     if let Some(last) = markers.last() {
-                        last.set_fox(true);
+                        last.set_fox(false);
                     }
                     Rc::new((fox_name, line, markers))
                 });
