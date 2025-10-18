@@ -18,14 +18,14 @@ function make_icon(large, color) {
 
 function fox_color(fox) {
     let color_map = {
-        a: "violet",
-        b: "red",
-        c: "yellow",
-        d: "black",
-        e: "green",
-        f: "blue",
-        g: "grey",
-        h: "orange",
+        a: "grey",
+        b: "green",
+        c: "blue",
+        d: "yellow",
+        e: "black",
+        f: "grey",
+        g: "orange",
+        h: "violet",
     };
 
     if (fox == null) {
