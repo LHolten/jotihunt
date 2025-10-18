@@ -113,8 +113,13 @@ export function set_human(marker) {
     set_custom(marker, "/human.png");
 }
 
-export function set_fox(marker) {
+export function set_fox(marker, old) {
     set_custom(marker, "/fox.png");
+    if (old) {
+        marker.setOpacity(0.5);
+    } else {
+        marker.setOpacity(1.0);
+    }
 }
 
 function set_custom(marker, name) {
