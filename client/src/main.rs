@@ -21,7 +21,6 @@ mod leaflet;
 mod options;
 
 const HOSTNAME: &str = "jotihunt.lucasholten.com";
-const WS_PROTOCOL: &str = "wss";
 const HTTP_PROTOCOL: &str = "https";
 
 fn location_editor(key: &'static str, fox_names: &[String]) {

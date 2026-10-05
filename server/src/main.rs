@@ -6,6 +6,7 @@ mod status;
 
 use std::{
     collections::HashMap,
+    convert::Infallible,
     fs::{read_to_string, set_permissions, File, Permissions},
     io::Write,
     os::unix::fs::PermissionsExt,
@@ -17,17 +18,17 @@ use article::retrieve_articles_loop;
 use async_stream::stream;
 use axum::{
     body::Bytes,
-    extract::{
-        ws::{Message, WebSocket},
-        Json, Path, Query, Request, WebSocketUpgrade,
-    },
+    extract::{Json, Path, Query, Request},
     http::StatusCode,
     middleware::Next,
-    response::IntoResponse,
+    response::{
+        sse::{Event, KeepAlive, Sse},
+        IntoResponse,
+    },
     routing::{any, get, post},
     RequestExt, Router,
 };
-use futures_util::{future, pin_mut, StreamExt};
+use futures_util::{Stream, StreamExt};
 use geojson::{get_geo, reload_geojson_loop};
 use jotihunt_shared::{domain::FoxKey, Broadcast, Traccar};
 use location::{create_location, delete_location, modify_location};
@@ -72,16 +73,15 @@ async fn main() -> anyhow::Result<()> {
             Router::new()
                 .route(
                     "/locations",
-                    get(move |req: WebSocketUpgrade| async move {
-                        req.on_upgrade(move |ws| {
-                            accept_and_log(ws, state, &state.live_locations, Location, |l| {
-                                LocationRow::from_expr(l).map(|row| {
-                                    let (key, fox) = row.into_parts();
-                                    encode_broadcast(&key, Some(&fox))
-                                })
+                    get(move || {
+                        event_stream(state, &state.live_locations, Location, |l| {
+                            LocationRow::from_expr(l).map(|row| {
+                                let (key, fox) = row.into_parts();
+                                encode_broadcast(&key, Some(&fox))
                             })
                         })
-                    }),
+                    })
+                    .layer(CorsLayer::very_permissive()),
                 )
                 .route(
                     "/locations/{day}/{time}/{fox_name}",
@@ -107,35 +107,32 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .route(
                     "/status",
-                    get(move |req: WebSocketUpgrade| async move {
-                        req.on_upgrade(move |ws| {
-                            accept_and_log(ws, state, &state.live_status, Status, |s| {
-                                StatusRow::from_expr(s).map(|row| {
-                                    let (key, status) = row.into_parts();
-                                    encode_broadcast(&key, Some(&status))
-                                })
+                    get(move || {
+                        event_stream(state, &state.live_status, Status, |s| {
+                            StatusRow::from_expr(s).map(|row| {
+                                let (key, status) = row.into_parts();
+                                encode_broadcast(&key, Some(&status))
                             })
                         })
-                    }),
+                    })
+                    .layer(CorsLayer::very_permissive()),
                 )
                 .route(
                     "/articles",
-                    get(move |req: WebSocketUpgrade| async move {
-                        req.on_upgrade(move |ws| {
-                            accept_and_log(ws, state, &state.live_articles, Article, |a| {
-                                ArticleRow::from_expr(a).map(|row| {
-                                    let (key, article) = row.into_parts();
-                                    encode_broadcast(&key, Some(&article))
-                                })
+                    get(move || {
+                        event_stream(state, &state.live_articles, Article, |a| {
+                            ArticleRow::from_expr(a).map(|row| {
+                                let (key, article) = row.into_parts();
+                                encode_broadcast(&key, Some(&article))
                             })
                         })
-                    }),
+                    })
+                    .layer(CorsLayer::very_permissive()),
                 )
                 .route(
                     "/live",
-                    get(move |req: WebSocketUpgrade| async move {
-                        req.on_upgrade(|ws| live_ws(ws, state.live_traccar.subscribe()))
-                    }),
+                    get(move || async move { live_events(state.live_traccar.subscribe()) })
+                        .layer(CorsLayer::very_permissive()),
                 )
                 .route_layer(axum::middleware::from_fn(
                     move |Path(params): Path<HashMap<String, String>>,
@@ -236,34 +233,27 @@ impl AppState {
     }
 }
 
-/// Every change to a table is sent on its [Live] channel.
+/// Every change to a table is sent on its [Live] channel as the JSON event data.
 ///
 /// Changes are sent inside the transaction that makes them and clients subscribe
 /// inside the (mutable) transaction that reads the initial data.
 /// Mutable transactions are serialized, so clients never miss or reorder a change.
-pub type Live = broadcast::Sender<Bytes>;
+pub type Live = broadcast::Sender<String>;
 
 /// Encode a change for the client, `None` means that the key was removed.
-pub fn encode_broadcast<K: Serialize, V: Serialize>(key: &K, value: Option<&V>) -> Bytes {
-    let broadcast = Broadcast {
-        key: postcard::to_stdvec(key).unwrap(),
-        value: value.map_or(vec![], |v| postcard::to_stdvec(v).unwrap()),
-    };
-    Bytes::from_owner(postcard::to_stdvec(&broadcast).unwrap())
+pub fn encode_broadcast<K: Serialize, V: Serialize>(key: &K, value: Option<&V>) -> String {
+    serde_json::to_string(&Broadcast::Update { key, value }).unwrap()
 }
 
 /// Send all rows of a table and then all its changes to the client.
-async fn accept_and_log<T: Table<Schema = Schema>>(
-    stream: WebSocket,
+async fn event_stream<T: Table<Schema = Schema>>(
     state: &'static AppState,
     live: &'static Live,
     table: impl 'static + Send + for<'x> IntoJoinable<'x, Schema, Typ = TableRow<T>>,
     select: impl 'static
         + Send
-        + for<'x> FnOnce(Expr<'x, Schema, TableRow<T>>) -> Select<'x, Schema, Bytes>,
-) {
-    println!("client connected");
-
+        + for<'x> FnOnce(Expr<'x, Schema, TableRow<T>>) -> Select<'x, Schema, String>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     // This uses a mutable transaction, because those are serialized with all
     // transactions that send changes. That is what guarantees no change is missed.
     let (snapshot, mut changes) = state
@@ -278,54 +268,85 @@ async fn accept_and_log<T: Table<Schema = Schema>>(
         })
         .await;
 
-    let (write, read) = stream.split();
-    // The client doesn't send anything, but reading notices when it disconnects.
-    let receive = read.for_each(|_| future::ready(()));
-
-    let send = stream! {
-        for bin in snapshot {
-            yield bin;
+    let events = stream! {
+        yield serde_json::to_string(&Broadcast::<(), ()>::Reset).unwrap();
+        for data in snapshot {
+            yield data;
         }
         loop {
             match changes.recv().await {
-                Ok(bin) => yield bin,
-                // The client can not recover from missed changes,
-                // so we disconnect and let it reload the page.
+                Ok(data) => yield data,
+                // Ending the stream makes the client reconnect,
+                // it then gets a reset and all rows again.
                 Err(RecvError::Lagged(_)) | Err(RecvError::Closed) => break,
             }
         }
-    }
-    .map(|bin| Ok(Message::Binary(bin)))
-    .forward(write);
-
-    pin_mut!(receive, send);
-    if let future::Either::Right((Err(e), _)) = future::select(receive, send).await {
-        println!("error on connection: {}", e)
-    }
-
-    println!("client disconnected");
+    };
+    Sse::new(events.map(|data| Ok(Event::default().data(data)))).keep_alive(KeepAlive::default())
 }
 
-type LiveReceiver = broadcast::Receiver<Traccar>;
-
-async fn live_ws(mut stream: WebSocket, mut live: LiveReceiver) {
-    loop {
-        match live.recv().await {
-            Ok(traccar) => {
-                let bin = postcard::to_stdvec(&traccar).unwrap();
-                let Ok(()) = stream
-                    .send(Message::Binary(axum::body::Bytes::from_owner(bin)))
-                    .await
-                else {
-                    break;
-                };
+/// Send the locations from traccar as JSON event data.
+fn live_events(
+    mut live: broadcast::Receiver<Traccar>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let events = stream! {
+        loop {
+            match live.recv().await {
+                Ok(traccar) => yield serde_json::to_string(&traccar).unwrap(),
+                Err(RecvError::Closed) => break,
+                // old locations are not important
+                Err(RecvError::Lagged(_)) => continue,
             }
-            Err(RecvError::Closed) => break,
-            Err(RecvError::Lagged(_)) => continue,
         }
-    }
+    };
+    Sse::new(events.map(|data| Ok(Event::default().data(data)))).keep_alive(KeepAlive::default())
 }
 
 fn leak<T>(val: T) -> &'static T {
     &*Box::leak(Box::new(val))
+}
+
+#[cfg(test)]
+mod tests {
+    use jotihunt_shared::domain::Fox;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn location_events() {
+        let state = leak(AppState::new(Config::open_in_memory()));
+        let key = |fox_name: &str| FoxKey {
+            day: "2026-10-05".to_owned(),
+            time: "10:00".to_owned(),
+            fox_name: fox_name.to_owned(),
+        };
+        let fox = Fox {
+            latitude: "1".to_owned(),
+            longitude: "2".to_owned(),
+        };
+        location::create_location(state, key("Alpha"), fox.clone()).await;
+
+        let sse = event_stream(state, &state.live_locations, Location, |l| {
+            LocationRow::from_expr(l).map(|row| {
+                let (key, fox) = row.into_parts();
+                encode_broadcast(&key, Some(&fox))
+            })
+        })
+        .await;
+        location::create_location(state, key("Bravo"), fox.clone()).await;
+
+        let mut body = sse.into_response().into_body().into_data_stream();
+        let mut text = String::new();
+        while text.matches("\n\n").count() < 3 {
+            text += std::str::from_utf8(&body.next().await.unwrap().unwrap()).unwrap();
+        }
+        let alpha = r#"{"key":{"day":"2026-10-05","time":"10:00","fox_name":"Alpha"},"value":{"latitude":"1","longitude":"2"}}"#;
+        let bravo = alpha.replace("Alpha", "Bravo");
+        assert_eq!(
+            text,
+            format!(
+                "data: \"Reset\"\n\ndata: {{\"Update\":{alpha}}}\n\ndata: {{\"Update\":{bravo}}}\n\n"
+            )
+        );
+    }
 }

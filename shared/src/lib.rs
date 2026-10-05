@@ -13,10 +13,14 @@ pub struct ModifyLocation {
     pub new: Fox,
 }
 
+/// JSON data of the server sent events of a table.
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Broadcast {
-    pub key: Vec<u8>,
-    pub value: Vec<u8>,
+pub enum Broadcast<K, V> {
+    /// Sent at the start of every connection, before all the rows.
+    /// Clients reconnect automatically, so they should forget all rows they have.
+    Reset,
+    /// `None` means that the row was removed.
+    Update { key: K, value: Option<V> },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

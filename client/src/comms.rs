@@ -1,17 +1,17 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, future::ready};
 
 use crate::leaflet::Marker;
-use crate::{HOSTNAME, HTTP_PROTOCOL, WS_PROTOCOL};
+use crate::{HOSTNAME, HTTP_PROTOCOL};
 use futures::{
     self,
     channel::mpsc::{self, UnboundedSender},
-    future, StreamExt, TryStreamExt,
+    Stream, StreamExt,
 };
 use gloo::{
     dialogs::alert,
     net::{
+        eventsource::futures::EventSource,
         http::Request,
-        websocket::{futures::WebSocket, Message},
     },
 };
 use jotihunt_shared::domain::{Fox, FoxKey};
@@ -64,30 +64,45 @@ async fn write_data(mut queue_read: mpsc::UnboundedReceiver<LocationEdit>, addre
     }
 }
 
-async fn read_data<K, V>(
-    read: WebSocket,
-    data: &Signal<std::collections::BTreeMap<K, V>>,
-) where
+/// The data of all messages from the server sent events at `address`.
+///
+/// The browser reconnects by itself after most errors, but it gives up when the
+/// server responds with an error (e.g. a 502 while it restarts). The stream then ends.
+pub fn event_messages(address: String) -> impl Stream<Item = String> {
+    // the connection is closed when the `EventSource` is dropped,
+    // so it is moved into the stream
+    let mut events = EventSource::new(&address).unwrap();
+    let messages = events.subscribe("message").unwrap();
+    // errors are only reported once the browser gave up
+    messages
+        .take_while(|msg| ready(msg.is_ok()))
+        .map(move |msg| {
+            let _keep_open = &events;
+            msg.unwrap().1.data().as_string().unwrap()
+        })
+}
+
+async fn read_data<K, V>(address: String, data: &Signal<std::collections::BTreeMap<K, V>>)
+where
     K: DeserializeOwned + Clone + Ord,
     V: DeserializeOwned + Clone,
 {
-    let _ = read
-        .try_for_each(|msg| match msg {
-            Message::Text(_) => panic!("we want bytes"),
-            Message::Bytes(bin) => {
-                let broadcast: Broadcast = postcard::from_bytes(&bin).unwrap();
-                let key: K = postcard::from_bytes(&broadcast.key).unwrap();
-
-                if broadcast.value.is_empty() {
-                    data.modify().remove(&key);
-                } else {
-                    let fox: V = postcard::from_bytes(&broadcast.value).unwrap();
-                    data.modify().insert(key.clone(), fox);
-                }
-                future::ok(())
+    // after every reconnect by the browser the server starts with a reset followed by all rows
+    let mut messages = Box::pin(event_messages(address));
+    while let Some(json) = messages.next().await {
+        match serde_json::from_str(&json).unwrap() {
+            Broadcast::Reset => data.set(BTreeMap::new()),
+            Broadcast::Update {
+                key,
+                value: Some(value),
+            } => {
+                data.modify().insert(key, value);
             }
-        })
-        .await;
+            Broadcast::Update { key, value: None } => {
+                data.modify().remove(&key);
+            }
+        }
+    }
 
     let local_time = Date::new_0().to_time_string();
     let msg = format!(
@@ -111,14 +126,12 @@ where
 {
     let data = create_signal(cx, BTreeMap::<K, V>::new());
 
-    let ws_address = format!("{WS_PROTOCOL}://{HOSTNAME}/{key}/{name}");
-    let ws = WebSocket::open(&ws_address).unwrap();
-    let post_address = format!("{HTTP_PROTOCOL}://{HOSTNAME}/{key}/{name}");
+    let address = format!("{HTTP_PROTOCOL}://{HOSTNAME}/{key}/{name}");
 
     let (queue_write, queue_read) = mpsc::unbounded();
 
-    spawn_local_scoped(cx, write_data(queue_read, post_address));
-    spawn_local_scoped(cx, read_data(ws, data));
+    spawn_local_scoped(cx, write_data(queue_read, address.clone()));
+    spawn_local_scoped(cx, read_data(address, data));
     (data, create_ref(cx, queue_write))
 }
 

@@ -52,10 +52,12 @@
 
               locations."/" = {
                 proxyPass = "http://unix:/run/jotihunt/socket";
-                proxyWebsockets = true;
                 recommendedProxySettings = true;
 
                 extraConfig = ''
+                  # server sent events must be forwarded immediately
+                  proxy_http_version 1.1;
+                  proxy_buffering off;
                   proxy_connect_timeout 7d;
                   proxy_send_timeout 7d;
                   proxy_read_timeout 7d;

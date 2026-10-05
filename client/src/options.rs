@@ -4,7 +4,6 @@ use futures::{channel::oneshot, FutureExt, StreamExt, TryStreamExt};
 use gloo::{
     console::console_dbg,
     dialogs::alert,
-    net::websocket::{futures::WebSocket, Message},
     timers::future::TimeoutFuture,
     utils::document,
 };
@@ -12,7 +11,7 @@ use jotihunt_shared::{domain::Fox, Traccar};
 use mk_geolocation::{future::PositionStream, PositionOptions};
 use sycamore::{futures::spawn_local_scoped, prelude::*};
 
-use crate::{leaflet::Marker, HOSTNAME, WS_PROTOCOL};
+use crate::{comms::event_messages, leaflet::Marker, HOSTNAME, HTTP_PROTOCOL};
 
 pub fn option_panel(key: &'static str) {
     let panel = document()
@@ -25,9 +24,8 @@ pub fn option_panel(key: &'static str) {
 
             create_effect_scoped(cx, move |cx| {
                 if *show_live.get() {
-                    let ws_address = format!("{WS_PROTOCOL}://{HOSTNAME}/{key}/live");
-                    let ws = WebSocket::open(&ws_address).unwrap();
-                    spawn_local_scoped(cx, read_live(ws))
+                    let address = format!("{HTTP_PROTOCOL}://{HOSTNAME}/{key}/live");
+                    spawn_local_scoped(cx, read_live(address))
                 }
             });
 
@@ -74,14 +72,11 @@ async fn my_loc() {
     alert("could not get your location")
 }
 
-async fn read_live(ws: WebSocket) {
+async fn read_live(address: String) {
     let mut live_data = HashMap::new();
 
-    ws.for_each_concurrent(None, |m| {
-        let traccar: Traccar = match m.unwrap() {
-            Message::Text(_) => panic!("we want bytes"),
-            Message::Bytes(bin) => postcard::from_bytes(&bin).unwrap(),
-        };
+    event_messages(address).for_each_concurrent(None, |json| {
+        let traccar: Traccar = serde_json::from_str(&json).unwrap();
         console_dbg!(&traccar);
         let live_loc = Fox {
             latitude: traccar.lat,
