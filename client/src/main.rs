@@ -1,11 +1,11 @@
 use std::{collections::BTreeMap, rc::Rc, time::Duration};
 
-use comms::live_updated;
+use comms::{live_updated, LocationEdit};
 use futures::SinkExt;
 use gloo::{dialogs::alert, net::http::Request, timers::future::sleep, utils::document};
 use jotihunt_shared::{
     domain::{Fox, FoxKey},
-    AtomicEdit,
+    ModifyLocation,
 };
 use js_sys::Date;
 use leaflet::Line;
@@ -142,18 +142,17 @@ fn location_editor(key: &'static str, fox_names: &[String]) {
                             alert("coordinaat heeft geen comma");
                             return
                         };
-                        let edit = AtomicEdit{
-                            key: postcard::to_stdvec(&FoxKey {
+                        let edit = LocationEdit::Create(
+                            FoxKey {
                                 day: current_day.get().as_ref().clone(),
                                 time: current_time.get().as_ref().clone(),
                                 fox_name: area.get().as_ref().clone(),
-                            }).unwrap(),
-                            old: Vec::new(),
-                            new: postcard::to_stdvec(&Fox{
+                            },
+                            Fox{
                                 latitude: lat.trim().to_string(),
                                 longitude: long.trim().to_string()
-                            }).unwrap(),
-                        };
+                            },
+                        );
                         spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
                     })
                 }
@@ -183,14 +182,13 @@ fn location_editor(key: &'static str, fox_names: &[String]) {
                             let latitude = create_signal(cx, fox.latitude);
                             let longitude = create_signal(cx, fox.longitude);
                             let send_update = create_ref(cx, move || {
-                                let edit = AtomicEdit{
-                                    key: postcard::to_stdvec(&key2).unwrap(),
-                                    old: postcard::to_stdvec(fox2).unwrap(),
-                                    new: postcard::to_stdvec(&Fox{
+                                let edit = LocationEdit::Modify(key2.clone(), ModifyLocation{
+                                    old: fox2.clone(),
+                                    new: Fox{
                                         latitude: latitude.get().as_ref().trim().to_string(),
                                         longitude: longitude.get().as_ref().trim().to_string()
-                                    }).unwrap(),
-                                };
+                                    },
+                                });
                                 spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
                             });
                             view!{cx,
@@ -251,11 +249,7 @@ fn location_editor(key: &'static str, fox_names: &[String]) {
                                 time: current_time.get().as_ref().clone(),
                                 fox_name: new_fox.to_string()
                             };
-                            let edit = AtomicEdit{
-                                key: postcard::to_stdvec(&address).unwrap(),
-                                old: postcard::to_stdvec(&Fox::default()).unwrap(),
-                                new: vec![]
-                            };
+                            let edit = LocationEdit::Delete(address, Fox::default());
                             spawn_local_scoped(cx, async {queue_write.clone().send(edit).await.unwrap();});
                         })
                     }

@@ -1,12 +1,16 @@
 pub mod domain;
 
+use domain::Fox;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct AtomicEdit {
-    pub key: Vec<u8>,
-    pub old: Vec<u8>,
-    pub new: Vec<u8>,
+/// Body of `PUT /{key}/locations/{day}/{time}/{fox_name}`,
+/// fails if the current location is not `old`.
+///
+/// `POST` (create) has the new [Fox] as body and `DELETE` the old [Fox].
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ModifyLocation {
+    pub old: Fox,
+    pub new: Fox,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

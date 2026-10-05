@@ -1,11 +1,10 @@
 use std::{sync::Arc, time::Duration};
 
-use arc_swap::ArcSwap;
+use jotihunt_shared::domain::StatusKey;
 use serde::Deserialize;
-use sled::Db;
 use tokio::time::sleep;
 
-use crate::leak;
+use crate::{db::Status, encode_broadcast, AppState};
 
 #[derive(Deserialize)]
 struct Areas {
@@ -19,49 +18,58 @@ struct Area {
     updated_at: String,
 }
 
-fn update_single_status(tree: &sled::Tree, area: Area) -> Result<(), postcard::Error> {
-    let key = postcard::to_allocvec(&(&area.updated_at, &area.name))?;
-    let value = postcard::to_allocvec(&area.status)?;
-    if tree.get(&key).unwrap().as_slice() != Some(&value).as_slice() {
-        let _old = tree.insert(&key, value).unwrap();
-    }
-    Ok(())
+async fn update_single_status(state: &'static AppState, area: Area) {
+    state
+        .db
+        .transaction_mut_ok(move |txn| {
+            txn.scope(|txn| {
+                let new = Status {
+                    date_time: area.updated_at.clone(),
+                    fox_name: area.name.clone(),
+                    status: area.status.clone(),
+                };
+                if let Err(row) = txn.insert(new) {
+                    let mut status = txn.mutable(row);
+                    if status.status == area.status {
+                        return;
+                    }
+                    status.status = area.status.clone();
+                }
+                let key = StatusKey {
+                    date_time: area.updated_at,
+                    fox_name: area.name,
+                };
+                let _ = state
+                    .live_status
+                    .send(encode_broadcast(&key, Some(&area.status)));
+            })
+        })
+        .await
 }
 
-async fn retrieve_status_inner(tree: &sled::Tree) -> Result<String, reqwest::Error> {
+/// Update the status table and the list of fox names.
+pub async fn retrieve_status(state: &'static AppState) -> Result<(), reqwest::Error> {
     let res = reqwest::get("https://jotihunt.nl/api/2.0/areas").await?;
     let areas: Areas = res.json().await?;
     let mut foxes = vec![];
     for area in areas.data {
         foxes.push(area.name.clone());
-        if let Err(err) = update_single_status(tree, area) {
-            println!("error handling area: {err}")
-        }
+        update_single_status(state, area).await;
     }
-    Ok(serde_json::to_string(&foxes).unwrap())
+    state
+        .fox_list
+        .store(Arc::new(serde_json::to_string(&foxes).unwrap()));
+    Ok(())
 }
 
-pub async fn retrieve_status_loop(db: &Db) -> &'static ArcSwap<String> {
-    let tree = db.open_tree("status").unwrap();
-    let list = retrieve_status_inner(&tree).await.unwrap();
-    let arc = leak(ArcSwap::new(Arc::new(list)));
+pub async fn retrieve_status_loop(state: &'static AppState) {
+    loop {
+        // every minute
+        sleep(Duration::from_secs(60)).await;
 
-    tokio::spawn(async move {
-        loop {
-            // every minute
-            sleep(Duration::from_secs(60)).await;
-
-            println!("reloading status");
-            match retrieve_status_inner(&tree).await {
-                Ok(list) => {
-                    arc.store(Arc::new(list));
-                }
-                Err(err) => {
-                    println!("error getting status: {err}");
-                }
-            }
+        println!("reloading status");
+        if let Err(err) = retrieve_status(state).await {
+            println!("error getting status: {err}");
         }
-    });
-
-    arc
+    }
 }

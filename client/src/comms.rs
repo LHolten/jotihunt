@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::leaflet::Marker;
-use crate::{HOSTNAME, WS_PROTOCOL};
+use crate::{HOSTNAME, HTTP_PROTOCOL, WS_PROTOCOL};
 use futures::{
     self,
     channel::mpsc::{self, UnboundedSender},
@@ -9,11 +9,14 @@ use futures::{
 };
 use gloo::{
     dialogs::alert,
-    net::websocket::{futures::WebSocket, Message},
+    net::{
+        http::Request,
+        websocket::{futures::WebSocket, Message},
+    },
 };
-use jotihunt_shared::domain::Fox;
-use jotihunt_shared::{AtomicEdit, Broadcast};
-use js_sys::Date;
+use jotihunt_shared::domain::{Fox, FoxKey};
+use jotihunt_shared::{Broadcast, ModifyLocation};
+use js_sys::{encode_uri_component, Date, Uint8Array};
 use serde::de::DeserializeOwned;
 use sycamore::{
     futures::spawn_local_scoped,
@@ -21,21 +24,48 @@ use sycamore::{
     reactive::Signal,
 };
 
-async fn write_data(
-    queue_read: mpsc::UnboundedReceiver<AtomicEdit>,
-    write: futures::stream::SplitSink<WebSocket, Message>,
-) {
-    let _ = queue_read
-        .map(|edit| {
-            let msg = Message::Bytes(postcard::to_stdvec(&edit).unwrap());
-            Ok(msg)
-        })
-        .forward(write)
-        .await;
+pub enum LocationEdit {
+    Create(FoxKey, Fox),
+    Modify(FoxKey, ModifyLocation),
+    /// the location is only deleted if it is still the given [Fox]
+    Delete(FoxKey, Fox),
+}
+
+// edits are sent one at a time, so that they are applied in order
+async fn write_data(mut queue_read: mpsc::UnboundedReceiver<LocationEdit>, address: String) {
+    while let Some(edit) = queue_read.next().await {
+        let path = |key: &FoxKey| {
+            let [day, time, fox_name] =
+                [&key.day, &key.time, &key.fox_name].map(|s| String::from(encode_uri_component(s)));
+            format!("{address}/{day}/{time}/{fox_name}")
+        };
+        let (req, bin, create) = match edit {
+            LocationEdit::Create(key, fox) => {
+                (Request::post(&path(&key)), postcard::to_stdvec(&fox), true)
+            }
+            LocationEdit::Modify(key, edit) => {
+                (Request::put(&path(&key)), postcard::to_stdvec(&edit), false)
+            }
+            LocationEdit::Delete(key, old) => {
+                (Request::delete(&path(&key)), postcard::to_stdvec(&old), false)
+            }
+        };
+        let res = match req.body(Uint8Array::from(&bin.unwrap()[..])) {
+            Ok(req) => req.send().await,
+            Err(err) => Err(err),
+        };
+        match res {
+            // 409 (and 404 when modifying or deleting) means the value was changed by someone else,
+            // just like before we ignore it
+            Ok(res) if res.ok() || res.status() == 409 || (!create && res.status() == 404) => {}
+            Ok(res) => alert(&format!("opslaan mislukt: {}", res.status_text())),
+            Err(err) => alert(&format!("opslaan mislukt: {err}")),
+        }
+    }
 }
 
 async fn read_data<K, V>(
-    read: futures::stream::SplitStream<WebSocket>,
+    read: WebSocket,
     data: &Signal<std::collections::BTreeMap<K, V>>,
 ) where
     K: DeserializeOwned + Clone + Ord,
@@ -73,7 +103,7 @@ pub fn live_updated<'cx, K, V>(
     name: &str,
 ) -> (
     &'cx ReadSignal<BTreeMap<K, V>>,
-    &'cx UnboundedSender<AtomicEdit>,
+    &'cx UnboundedSender<LocationEdit>,
 )
 where
     K: DeserializeOwned + Clone + Ord,
@@ -83,12 +113,12 @@ where
 
     let ws_address = format!("{WS_PROTOCOL}://{HOSTNAME}/{key}/{name}");
     let ws = WebSocket::open(&ws_address).unwrap();
+    let post_address = format!("{HTTP_PROTOCOL}://{HOSTNAME}/{key}/{name}");
 
-    let (write, read) = ws.split();
     let (queue_write, queue_read) = mpsc::unbounded();
 
-    spawn_local_scoped(cx, write_data(queue_read, write));
-    spawn_local_scoped(cx, read_data(read, data));
+    spawn_local_scoped(cx, write_data(queue_read, post_address));
+    spawn_local_scoped(cx, read_data(ws, data));
     (data, create_ref(cx, queue_write))
 }
 
