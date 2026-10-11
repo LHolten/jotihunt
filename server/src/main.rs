@@ -13,6 +13,7 @@ use std::{
     sync::Arc,
 };
 
+use anyhow::Context;
 use arc_swap::ArcSwap;
 use article::retrieve_articles_loop;
 use async_stream::stream;
@@ -179,11 +180,16 @@ async fn main() -> anyhow::Result<()> {
                 .route_layer(CorsLayer::very_permissive()),
         );
 
-    // debug builds listen on TCP for local testing with `trunk serve`
+    // debug builds put caddy in front of a TCP port for local testing with `trunk serve`
     if cfg!(debug_assertions) {
-        let addr = "127.0.0.1:3000";
-        let listener = tokio::net::TcpListener::bind(&addr).await?;
-        println!("listening on http://{addr}");
+        let addr = "127.0.0.1:3001";
+        let listener = tokio::net::TcpListener::bind(addr).await?;
+        std::process::Command::new("caddy")
+            .args(["reverse-proxy", "--from", "https://localhost:3000", "--disable-redirects"])
+            .args(["--to", addr])
+            .spawn()
+            .context("failed to start caddy, is it installed?")?;
+        println!("listening on https://localhost:3000");
         axum::serve(listener, router).await?;
     } else {
         let path = "/run/jotihunt/socket";

@@ -54,7 +54,7 @@
 
         # For `nix develop`:
         devShell = pkgs.mkShell {
-          nativeBuildInputs = with pkgs; [nixd];
+          nativeBuildInputs = with pkgs; [nixd caddy];
         };
       }
     );

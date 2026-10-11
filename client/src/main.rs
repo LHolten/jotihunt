@@ -23,13 +23,13 @@ mod options;
 cfg_select! {
     debug_assertions => {
         const HOSTNAME: &str = "localhost:3000";
-        const HTTP_PROTOCOL: &str = "http";
     }
     _ => {
         const HOSTNAME: &str = "jotihunt.lucasholten.com";
-        const HTTP_PROTOCOL: &str = "https";
     }
 }
+
+const HTTP_PROTOCOL: &str = "https";
 
 fn location_editor(key: &'static str, fox_names: &[String]) {
     let coord_editor = document()
