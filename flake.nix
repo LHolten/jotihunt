@@ -17,13 +17,15 @@
           pname = "jotihunt";
           version = "0.1.0";
 
+          src = ./.;
+          buildAndTestSubdir = "server";
+
           cargoLock = {
             lockFile = ./Cargo.lock;
             allowBuiltinFetchGit = true;
           };
-          src = ./.;
 
-          buildAndTestSubdir = "server";
+          buildInputs = [ pkgs.sqlite ];            # libraries to link against
         };
       in {
         # For `nix build` & `nix run`:
