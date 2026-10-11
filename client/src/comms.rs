@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, future::ready};
 
 use crate::leaflet::Marker;
-use crate::{HOSTNAME, HTTP_PROTOCOL};
+use crate::HOSTNAME;
 use futures::{
     self,
     channel::mpsc::{self, UnboundedSender},
@@ -9,10 +9,7 @@ use futures::{
 };
 use gloo::{
     dialogs::alert,
-    net::{
-        eventsource::futures::EventSource,
-        http::Request,
-    },
+    net::{eventsource::futures::EventSource, http::Request},
 };
 use jotihunt_shared::domain::{Fox, FoxKey};
 use jotihunt_shared::{Broadcast, ModifyLocation};
@@ -46,9 +43,11 @@ async fn write_data(mut queue_read: mpsc::UnboundedReceiver<LocationEdit>, addre
             LocationEdit::Modify(key, edit) => {
                 (Request::put(&path(&key)), postcard::to_stdvec(&edit), false)
             }
-            LocationEdit::Delete(key, old) => {
-                (Request::delete(&path(&key)), postcard::to_stdvec(&old), false)
-            }
+            LocationEdit::Delete(key, old) => (
+                Request::delete(&path(&key)),
+                postcard::to_stdvec(&old),
+                false,
+            ),
         };
         let res = match req.body(Uint8Array::from(&bin.unwrap()[..])) {
             Ok(req) => req.send().await,
@@ -112,6 +111,20 @@ where
     alert(&msg)
 }
 
+/// All rows of the table with server sent events at `address`, kept up to date.
+pub fn live_table<'cx, K, V>(
+    cx: BoundedScope<'cx, 'cx>,
+    address: String,
+) -> &'cx ReadSignal<BTreeMap<K, V>>
+where
+    K: DeserializeOwned + Clone + Ord,
+    V: DeserializeOwned + Clone,
+{
+    let data = create_signal(cx, BTreeMap::<K, V>::new());
+    spawn_local_scoped(cx, read_data(address, data));
+    data
+}
+
 pub fn live_updated<'cx, K, V>(
     cx: BoundedScope<'cx, 'cx>,
     key: &str,
@@ -124,14 +137,12 @@ where
     K: DeserializeOwned + Clone + Ord,
     V: DeserializeOwned + Clone,
 {
-    let data = create_signal(cx, BTreeMap::<K, V>::new());
-
-    let address = format!("{HTTP_PROTOCOL}://{HOSTNAME}/{key}/{name}");
+    let address = format!("https://{HOSTNAME}/{key}/{name}");
 
     let (queue_write, queue_read) = mpsc::unbounded();
 
     spawn_local_scoped(cx, write_data(queue_read, address.clone()));
-    spawn_local_scoped(cx, read_data(address, data));
+    let data = live_table(cx, address);
     (data, create_ref(cx, queue_write))
 }
 

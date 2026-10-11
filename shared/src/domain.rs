@@ -25,9 +25,9 @@ pub struct ArticleKey {
     pub id: usize,
 }
 
+/// The body is not included, it is at `GET /articles/{publish_at}/{id}`.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SavedArticle {
     pub title: String,
     pub r#type: String,
-    pub content: String,
 }

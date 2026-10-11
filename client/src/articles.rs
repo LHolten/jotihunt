@@ -2,21 +2,26 @@ use std::cell::Cell;
 
 use gloo::{
     dialogs::alert,
+    net::http::Request,
     utils::{document, window},
 };
 use jotihunt_shared::domain::{ArticleKey, SavedArticle, StatusKey};
+use js_sys::encode_uri_component;
 use merging_iterator::MergeIter;
 use sycamore::{
-    builder::tag,
     flow::Keyed,
-    prelude::{create_effect, create_memo, create_ref, create_signal, BoundedScope},
+    futures::spawn_local_scoped,
+    generic_node::GenericNode,
+    prelude::{
+        create_effect, create_memo, create_node_ref, create_ref, create_signal, BoundedScope,
+    },
     view,
     web::DomNode,
 };
 use wasm_bindgen::JsValue;
 use web_sys::Element;
 
-use crate::comms::live_updated;
+use crate::{comms::live_table, HOSTNAME};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 enum Update {
@@ -25,7 +30,7 @@ enum Update {
         status: String,
         until: Option<String>,
     },
-    Article(SavedArticle),
+    Article(ArticleKey, SavedArticle),
 }
 
 impl Update {
@@ -61,12 +66,12 @@ impl Update {
                     }
                 }
             }
-            Update::Article(article) => {
+            Update::Article(key, article) => {
                 let title = format!("{time_short}: {}", article.title);
                 view! {cx,
                     p {
                         input (type="button", on:click = move |_| {
-                            update_page(&article);
+                            update_page(&key, &article);
                         }, value=(title))
                     }
                 }
@@ -77,7 +82,7 @@ impl Update {
     fn kind(&self) -> &str {
         match self {
             Update::Status { .. } => "nieuwe status",
-            Update::Article(saved_article) => match &*saved_article.r#type {
+            Update::Article(_, saved_article) => match &*saved_article.r#type {
                 "hint" => "nieuwe hint",
                 "assignment" => "nieuwe opdracht",
                 "news" => "nieuw bericht",
@@ -87,15 +92,16 @@ impl Update {
     }
 }
 
-pub fn articles(key: &'static str) {
+pub fn articles() {
     let articles = document()
         .get_element_by_id("articles")
         .expect("there is an articles element");
 
     sycamore::render_to(
         |cx| {
-            let (articles, _) = live_updated::<ArticleKey, SavedArticle>(cx, key, "articles");
-            let (status, _) = live_updated::<StatusKey, String>(cx, key, "status");
+            let articles =
+                live_table::<ArticleKey, SavedArticle>(cx, format!("https://{HOSTNAME}/articles"));
+            let status = live_table::<StatusKey, String>(cx, format!("https://{HOSTNAME}/status"));
 
             let status_check = create_signal(cx, false);
             let everything = create_signal(cx, false);
@@ -105,7 +111,7 @@ pub fn articles(key: &'static str) {
                 let left = get
                     .iter()
                     .filter(|(_, v)| *everything.get() || &v.r#type == "hint")
-                    .map(|(k, v)| (k.publish_at.clone(), Update::Article(v.clone())));
+                    .map(|(k, v)| (k.publish_at.clone(), Update::Article(k.clone(), v.clone())));
                 let get = status.get();
                 let right = get
                     .iter()
@@ -182,7 +188,16 @@ fn reset_page() {
     panel_column.remove_attribute("hidden").unwrap();
 }
 
-fn update_page(article: &SavedArticle) {
+/// The stream does not include the body of articles, so it is loaded here.
+async fn article_content(key: &ArticleKey) -> String {
+    let publish_at = String::from(encode_uri_component(&key.publish_at));
+    let address = format!("https://{HOSTNAME}/articles/{publish_at}/{}", key.id);
+    let res = Request::get(&address).send().await.unwrap();
+    res.text().await.unwrap()
+}
+
+fn update_page(key: &ArticleKey, article: &SavedArticle) {
+    let key = key.clone();
     let article = article.clone();
 
     let page = get_element("page");
@@ -197,16 +212,18 @@ fn update_page(article: &SavedArticle) {
 
     sycamore::render_to(
         |cx| {
-            let content = tag("div")
-                .dangerously_set_inner_html(article.content)
-                .view(cx);
+            let content = create_node_ref(cx);
+            spawn_local_scoped(cx, async move {
+                let html = article_content(&key).await;
+                content.get::<DomNode>().dangerously_set_inner_html(&html);
+            });
 
             view! {cx,
                 input(type="button", value="Terug", on:click=|_|{
                     reset_page()
                 })
                 h1 {(article.title)}
-                p {(content)}
+                p {div(ref=content) {"laden..."}}
             }
         },
         &page,

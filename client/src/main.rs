@@ -29,8 +29,6 @@ cfg_select! {
     }
 }
 
-const HTTP_PROTOCOL: &str = "https";
-
 fn location_editor(key: &'static str, fox_names: &[String]) {
     let coord_editor = document()
         .get_element_by_id("coord_editor")
@@ -271,10 +269,10 @@ fn location_editor(key: &'static str, fox_names: &[String]) {
 fn main() {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 
-    leaflet::load_participants(&format!("{HTTP_PROTOCOL}://{HOSTNAME}/deelnemers.geojson"));
+    leaflet::load_participants(&format!("https://{HOSTNAME}/deelnemers.geojson"));
 
     spawn_local(async {
-        let pass_address = format!("{HTTP_PROTOCOL}://{HOSTNAME}/secret");
+        let pass_address = format!("https://{HOSTNAME}/secret");
         let res = Request::get(&pass_address)
             .credentials(web_sys::RequestCredentials::Include)
             .send()
@@ -283,7 +281,7 @@ fn main() {
         let key = Box::leak(key.into_boxed_str());
 
         let fox_names: Vec<String> =
-            gloo::net::http::Request::get(&format!("{HTTP_PROTOCOL}://{HOSTNAME}/fox_list.json"))
+            gloo::net::http::Request::get(&format!("https://{HOSTNAME}/fox_list.json"))
                 .send()
                 .await
                 .unwrap()
@@ -293,7 +291,7 @@ fn main() {
 
         location_editor(key, &fox_names);
         option_panel(key);
-        articles::articles(key);
+        articles::articles();
     });
 }
 

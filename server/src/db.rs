@@ -81,7 +81,6 @@ pub struct ArticleRow {
     pub article_id: i64,
     pub title: String,
     pub article_type: String,
-    pub content: String,
 }
 
 impl ArticleRow {
@@ -93,7 +92,6 @@ impl ArticleRow {
         let article = SavedArticle {
             title: self.title,
             r#type: self.article_type,
-            content: self.content,
         };
         (key, article)
     }

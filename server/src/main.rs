@@ -15,7 +15,7 @@ use std::{
 
 use anyhow::Context;
 use arc_swap::ArcSwap;
-use article::retrieve_articles_loop;
+use article::{article_content, retrieve_articles_loop};
 use async_stream::stream;
 use axum::{
     body::Bytes,
@@ -31,7 +31,10 @@ use axum::{
 };
 use futures_util::{Stream, StreamExt};
 use geojson::{get_geo, reload_geojson_loop};
-use jotihunt_shared::{domain::FoxKey, Broadcast, Traccar};
+use jotihunt_shared::{
+    domain::{ArticleKey, FoxKey},
+    Broadcast, Traccar,
+};
 use location::{create_location, delete_location, modify_location};
 use rust_query::{
     migration::Config, private::IntoJoinable, Database, DatabaseAsync, Expr, FromExpr, Select,
@@ -66,7 +69,6 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/secret",
             get(move || async move { state.secret.to_string() })
-                .route_layer(CorsLayer::very_permissive())
                 .layer(ValidateRequestHeaderLayer::basic("", &password)),
         )
         .nest(
@@ -81,8 +83,7 @@ async fn main() -> anyhow::Result<()> {
                                 encode_broadcast(&key, Some(&fox))
                             })
                         })
-                    })
-                    .layer(CorsLayer::very_permissive()),
+                    }),
                 )
                 .route(
                     "/locations/{day}/{time}/{fox_name}",
@@ -98,42 +99,18 @@ async fn main() -> anyhow::Result<()> {
                             Err(_) => StatusCode::BAD_REQUEST,
                         }
                     })
-                    .delete(move |Path(key): Path<FoxKey>, body: Bytes| async move {
-                        match postcard::from_bytes(&body) {
-                            Ok(old) => delete_location(state, key, old).await,
-                            Err(_) => StatusCode::BAD_REQUEST,
-                        }
-                    })
-                    .layer(CorsLayer::very_permissive()),
-                )
-                .route(
-                    "/status",
-                    get(move || {
-                        event_stream(state, &state.live_status, Status, |s| {
-                            StatusRow::from_expr(s).map(|row| {
-                                let (key, status) = row.into_parts();
-                                encode_broadcast(&key, Some(&status))
-                            })
-                        })
-                    })
-                    .layer(CorsLayer::very_permissive()),
-                )
-                .route(
-                    "/articles",
-                    get(move || {
-                        event_stream(state, &state.live_articles, Article, |a| {
-                            ArticleRow::from_expr(a).map(|row| {
-                                let (key, article) = row.into_parts();
-                                encode_broadcast(&key, Some(&article))
-                            })
-                        })
-                    })
-                    .layer(CorsLayer::very_permissive()),
+                    .delete(
+                        move |Path(key): Path<FoxKey>, body: Bytes| async move {
+                            match postcard::from_bytes(&body) {
+                                Ok(old) => delete_location(state, key, old).await,
+                                Err(_) => StatusCode::BAD_REQUEST,
+                            }
+                        },
+                    ),
                 )
                 .route(
                     "/live",
-                    get(move || async move { live_events(state.live_traccar.subscribe()) })
-                        .layer(CorsLayer::very_permissive()),
+                    get(move || async move { live_events(state.live_traccar.subscribe()) }),
                 )
                 .route_layer(axum::middleware::from_fn(
                     move |Path(params): Path<HashMap<String, String>>,
@@ -169,23 +146,59 @@ async fn main() -> anyhow::Result<()> {
                 StatusCode::OK.into_response()
             }),
         )
+        // the status and articles are public, so they are not behind the secret
+        .route(
+            "/status",
+            get(move || {
+                event_stream(state, &state.live_status, Status, |s| {
+                    StatusRow::from_expr(s).map(|row| {
+                        let (key, status) = row.into_parts();
+                        encode_broadcast(&key, Some(&status))
+                    })
+                })
+            }),
+        )
+        .route(
+            "/articles",
+            get(move || {
+                event_stream(state, &state.live_articles, Article, |a| {
+                    ArticleRow::from_expr(a).map(|row| {
+                        let (key, article) = row.into_parts();
+                        encode_broadcast(&key, Some(&article))
+                    })
+                })
+            }),
+        )
+        .route(
+            "/articles/{publish_at}/{id}",
+            get(move |Path(key): Path<ArticleKey>| async move {
+                article_content(state, key)
+                    .await
+                    .ok_or(StatusCode::NOT_FOUND)
+            }),
+        )
         .route(
             "/deelnemers.geojson",
-            get(move || async move { state.geojson.load().as_ref().clone() })
-                .route_layer(CorsLayer::very_permissive()),
+            get(move || async move { state.geojson.load().as_ref().clone() }),
         )
         .route(
             "/fox_list.json",
-            get(move || async move { state.fox_list.load().as_ref().clone() })
-                .route_layer(CorsLayer::very_permissive()),
-        );
+            get(move || async move { state.fox_list.load().as_ref().clone() }),
+        )
+        // the client is served from a different origin
+        .layer(CorsLayer::very_permissive());
 
     // debug builds put caddy in front of a TCP port for local testing with `trunk serve`
     if cfg!(debug_assertions) {
         let addr = "127.0.0.1:3001";
         let listener = tokio::net::TcpListener::bind(addr).await?;
         std::process::Command::new("caddy")
-            .args(["reverse-proxy", "--from", "https://localhost:3000", "--disable-redirects"])
+            .args([
+                "reverse-proxy",
+                "--from",
+                "https://localhost:3000",
+                "--disable-redirects",
+            ])
             .args(["--to", addr])
             .spawn()
             .context("failed to start caddy, is it installed?")?;

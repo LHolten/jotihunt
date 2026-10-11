@@ -1,17 +1,12 @@
 use std::{collections::HashMap, future::ready};
 
 use futures::{channel::oneshot, FutureExt, StreamExt, TryStreamExt};
-use gloo::{
-    console::console_dbg,
-    dialogs::alert,
-    timers::future::TimeoutFuture,
-    utils::document,
-};
+use gloo::{console::console_dbg, dialogs::alert, timers::future::TimeoutFuture, utils::document};
 use jotihunt_shared::{domain::Fox, Traccar};
 use mk_geolocation::{future::PositionStream, PositionOptions};
 use sycamore::{futures::spawn_local_scoped, prelude::*};
 
-use crate::{comms::event_messages, leaflet::Marker, HOSTNAME, HTTP_PROTOCOL};
+use crate::{comms::event_messages, leaflet::Marker, HOSTNAME};
 
 pub fn option_panel(key: &'static str) {
     let panel = document()
@@ -24,7 +19,7 @@ pub fn option_panel(key: &'static str) {
 
             create_effect_scoped(cx, move |cx| {
                 if *show_live.get() {
-                    let address = format!("{HTTP_PROTOCOL}://{HOSTNAME}/{key}/live");
+                    let address = format!("https://{HOSTNAME}/{key}/live");
                     spawn_local_scoped(cx, read_live(address))
                 }
             });
@@ -40,7 +35,7 @@ pub fn option_panel(key: &'static str) {
             view! {cx,
                 summary {"Opties"}
                 div {"Deze url invullen in je traccar client:"}
-                pre {(format!("{HTTP_PROTOCOL}://{HOSTNAME}/traccar"))}
+                pre {(format!("https://{HOSTNAME}/traccar"))}
                 div(class="field"){
                     label(for="traccar"){"Traccar bekijken:"}
                     input(id="traccar", type="checkbox", bind:checked=show_live)
@@ -75,32 +70,33 @@ async fn my_loc() {
 async fn read_live(address: String) {
     let mut live_data = HashMap::new();
 
-    event_messages(address).for_each_concurrent(None, |json| {
-        let traccar: Traccar = serde_json::from_str(&json).unwrap();
-        console_dbg!(&traccar);
-        let live_loc = Fox {
-            latitude: traccar.lat,
-            longitude: traccar.lon,
-        };
-        let Some(marker) = make_marker(&live_loc, traccar.id.clone()) else {
-            return ready(()).boxed_local();
-        };
-        marker.set_human();
-        console_dbg!("placed marker");
-        let (mut send, receive) = oneshot::channel::<()>();
-        live_data.insert(traccar.id, receive);
+    event_messages(address)
+        .for_each_concurrent(None, |json| {
+            let traccar: Traccar = serde_json::from_str(&json).unwrap();
+            console_dbg!(&traccar);
+            let live_loc = Fox {
+                latitude: traccar.lat,
+                longitude: traccar.lon,
+            };
+            let Some(marker) = make_marker(&live_loc, traccar.id.clone()) else {
+                return ready(()).boxed_local();
+            };
+            marker.set_human();
+            console_dbg!("placed marker");
+            let (mut send, receive) = oneshot::channel::<()>();
+            live_data.insert(traccar.id, receive);
 
-        async move {
-            futures::select! {
-                _ = TimeoutFuture::new(5 * 60 * 1000).fuse() => (),
-                _ = send.cancellation().fuse() => ()
+            async move {
+                futures::select! {
+                    _ = TimeoutFuture::new(5 * 60 * 1000).fuse() => (),
+                    _ = send.cancellation().fuse() => ()
+                }
+                console_dbg!("removed marker");
+                drop(marker)
             }
-            console_dbg!("removed marker");
-            drop(marker)
-        }
-        .boxed_local()
-    })
-    .await
+            .boxed_local()
+        })
+        .await
 }
 
 pub fn make_marker(fox: &Fox, name: String) -> Option<Marker> {
