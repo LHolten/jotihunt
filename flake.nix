@@ -45,25 +45,10 @@
           };
           users.groups.jotihunt = {};
 
-          services.nginx = {
-            virtualHosts."jotihunt.lucasholten.com" = {
-              enableACME = true;
-              forceSSL = true;
-
-              locations."/" = {
-                proxyPass = "http://unix:/run/jotihunt/socket";
-                recommendedProxySettings = true;
-
-                extraConfig = ''
-                  # server sent events must be forwarded immediately
-                  proxy_http_version 1.1;
-                  proxy_buffering off;
-                  proxy_connect_timeout 7d;
-                  proxy_send_timeout 7d;
-                  proxy_read_timeout 7d;
-                '';
-              };
-            };
+          services.caddy = {
+            virtualHosts."jotihunt.lucasholten.com".extraConfig = ''
+              reverse_proxy unix//run/jotihunt/socket
+            '';
           };
         };
 
