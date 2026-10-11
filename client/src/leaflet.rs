@@ -19,6 +19,9 @@ extern "C" {
     fn add_line_marker(line: &JsLine, marker: &JsMarker);
     #[wasm_bindgen(js_name = remove_layer)]
     fn remove_line(line: &JsLine);
+
+    /// Shows the participating groups from the geojson at `url` on the map.
+    pub fn load_participants(url: &str);
 }
 
 pub struct Marker(JsMarker);

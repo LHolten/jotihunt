@@ -20,8 +20,16 @@ mod comms;
 mod leaflet;
 mod options;
 
-const HOSTNAME: &str = "jotihunt.lucasholten.com";
-const HTTP_PROTOCOL: &str = "https";
+cfg_select! {
+    debug_assertions => {
+        const HOSTNAME: &str = "localhost:3000";
+        const HTTP_PROTOCOL: &str = "http";
+    }
+    _ => {
+        const HOSTNAME: &str = "jotihunt.lucasholten.com";
+        const HTTP_PROTOCOL: &str = "https";
+    }
+}
 
 fn location_editor(key: &'static str, fox_names: &[String]) {
     let coord_editor = document()
@@ -261,6 +269,8 @@ fn location_editor(key: &'static str, fox_names: &[String]) {
 
 fn main() {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+
+    leaflet::load_participants(&format!("{HTTP_PROTOCOL}://{HOSTNAME}/deelnemers.geojson"));
 
     spawn_local(async {
         let pass_address = format!("{HTTP_PROTOCOL}://{HOSTNAME}/secret");

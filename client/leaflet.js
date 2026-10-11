@@ -53,7 +53,12 @@ function make_map() {
         attribution: "© OpenStreetMap",
     }).addTo(map);
 
-    fetch("https://jotihunt.lucasholten.com/deelnemers.geojson")
+    return map;
+}
+var map = make_map();
+
+export function load_participants(url) {
+    fetch(url)
         .then((res) => res.json())
         .then((data) => {
             L.geoJSON(data, {
@@ -68,10 +73,7 @@ function make_map() {
                 },
             }).addTo(map);
         });
-
-    return map;
 }
-var map = make_map();
 
 let orga = add_marker(5.8725166117126575, 51.95402844147237, "orga", false);
 set_custom(orga, "/stikkerbuilding.png");

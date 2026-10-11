@@ -40,7 +40,7 @@ pub fn option_panel(key: &'static str) {
             view! {cx,
                 summary {"Opties"}
                 div {"Deze url invullen in je traccar client:"}
-                pre {"https://jotihunt.lucasholten.com/traccar"}
+                pre {(format!("{HTTP_PROTOCOL}://{HOSTNAME}/traccar"))}
                 div(class="field"){
                     label(for="traccar"){"Traccar bekijken:"}
                     input(id="traccar", type="checkbox", bind:checked=show_live)
