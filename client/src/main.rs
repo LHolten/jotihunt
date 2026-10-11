@@ -45,7 +45,8 @@ fn location_editor(key: &'static str, fox_names: &[String]) {
             let current_day = {
                 let date = Date::new_0();
                 let day = date.get_date();
-                let month = date.get_month();
+                // javascript months start at 0
+                let month = date.get_month() + 1;
                 let year = date.get_full_year();
                 create_signal(cx, format!("{year:0>4}-{month:0>2}-{day:0>2}"))
             };
