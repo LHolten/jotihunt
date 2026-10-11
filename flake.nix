@@ -19,8 +19,11 @@
 
           cargoLock = {
             lockFile = ./Cargo.lock;
+            allowBuiltinFetchGit = true;
           };
           src = ./.;
+
+          buildAndTestSubdir = "server";
         };
       in {
         # For `nix build` & `nix run`:
