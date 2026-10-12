@@ -56,20 +56,16 @@ function make_map() {
         maxZoom: 19,
         attribution: "© OpenStreetMap",
     };
-    let osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        ...options,
-        // on high dpi screens this shows the tiles of one zoom level deeper
-        // at half their size, which makes it sharp but everything smaller.
-        // That lowers `maxZoom` by one, the last level is the 19 tiles stretched.
-        detectRetina: true,
-        maxZoom: L.Browser.retina ? 20 : 19,
-        maxNativeZoom: L.Browser.retina ? 18 : 19,
-    });
+    let osm = L.tileLayer(
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        options,
+    );
 
     if (L.Browser.retina) {
         // osm has no high resolution tiles, these are the same map at 512px.
         // The server is only tolerated for outside use and can stop without
         // notice, so the first tile that fails switches back to osm.
+        // That is blurry, osm tiles can only be sharp by drawing them at half size.
         let hd = L.tileLayer("https://{s}.osm.rrze.fau.de/osmhd/{z}/{x}/{y}.png", {
             ...options,
             subdomains: "ab",
