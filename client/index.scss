@@ -64,6 +64,13 @@ input[updated=false] {
     vertical-align: middle;
 }
 
+.fox-pin svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.5));
+}
+
 #page {
     z-index: -2;
 }

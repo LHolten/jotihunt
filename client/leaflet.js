@@ -99,7 +99,7 @@ function add_legend(areas) {
 }
 
 let orga = add_marker(5.8725166117126575, 51.95402844147237, "orga", false);
-set_custom(orga, "stikkerbuilding.png");
+set_custom(orga, "stikkerbuilding.png", 0.5);
 
 proj4.defs(
     "EPSG:7415",
@@ -138,8 +138,30 @@ export function set_human(marker) {
     set_custom(marker, "human.png");
 }
 
-export function set_fox(marker, old) {
-    set_custom(marker, "fox.png");
+// the colors of the participant markers
+const marker_hex = {
+    red: "#cb2b3e",
+    green: "#2aad27",
+    blue: "#2a81cb",
+    yellow: "#cac428",
+    black: "#3d3d3d",
+    grey: "#7b7b7b",
+    orange: "#cb8427",
+    violet: "#9c2bcb",
+};
+
+// `fox.svg` in the color of the area, its tip is at (16, 35), styled by `.fox-pin`
+export function set_fox(marker, fox, old) {
+    const f = 0.75;
+    const color = marker_hex[fox_color(fox)];
+    const icon = L.divIcon({
+        className: "fox-pin",
+        html: `<svg viewBox="0 0 32 37" style="color: ${color}"><use href="fox.svg#fox"/></svg>`,
+        iconSize: [32 * f, 37 * f],
+        iconAnchor: [16 * f, 35 * f],
+        popupAnchor: [0, -28 * f],
+    });
+    marker.setIcon(icon);
     if (old) {
         marker.setOpacity(0.5);
     } else {
@@ -147,8 +169,7 @@ export function set_fox(marker, old) {
     }
 }
 
-function set_custom(marker, name) {
-    let f = 0.75;
+function set_custom(marker, name, f = 0.75) {
     let icon = new L.Icon({
         iconUrl: name,
         iconSize: [34 * f, 41 * f],

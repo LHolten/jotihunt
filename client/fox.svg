@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 37" width="32" height="37" color="#61630a">
+    <!-- the pin is filled with the current color, so `<use href="fox.svg#fox">` can set it -->
+    <g id="fox">
+        <path fill="currentColor" stroke="rgba(0, 0, 0, 0.55)" d="M4.5 3.5H27.5Q28.5 3.5 28.5 4.5V27.5Q28.5 28.5 27.5 28.5H22L16 35L10 28.5H4.5Q3.5 28.5 3.5 27.5V4.5Q3.5 3.5 4.5 3.5Z" />
+        <!-- the white fox of the old fox.png -->
+        <image width="32" height="37" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAlCAYAAAAjt+tHAAABK0lEQVR42u2Wu0oDURRFV0TsfIFYqKBYCIL4EbbaKHY2VpIPEEsLC0H/wEYbP0JCvkEsfIEYMIilhmAhElk2JzCgwRkJRPBuuMzcfe7ssxjuPEoqvVQfPVYCSAAJIAH8eYA94BTY7OUd2ABOgIsO9Vlg4rcApR8+Rs/AaGb+ADwCA8A4MJ2pvQTkPlDtBkAVGANqwGrOvHtgBpgH7nJdoeYZFfPpPNY21bk82XkBFtS62opGjWi2q16qb1GrqCuxpqZOdQsAdUjdjvCtjD+iPqk76ms0basZgOudcou8B5qxHz6As4zfAFrAIXANLAHDwFHMAdbC+6L+gk/NYjSvZ7xb4CDOb4D3gC13cxO2x9U33mQcl9VjdbBIZin9lCaABJAAEkACSAD/HuATfITJVBisrWsAAAAASUVORK5CYII=" />
+    </g>
+</svg>

@@ -90,13 +90,13 @@ fn location_editor(key: &'static str, fox_names: Vec<String>) {
                     for (time, fox) in points {
                         let name = format!("{} ({})", fox_name, time);
                         if let Some(marker) = comms::make_marker(&fox, &name) {
-                            marker.set_fox(true);
+                            marker.set_fox(&fox_name, true);
                             line.push(&marker);
                             markers.push(marker);
                         }
                     }
                     if let Some(last) = markers.last() {
-                        last.set_fox(false);
+                        last.set_fox(&fox_name, false);
                     }
                     Rc::new((fox_name, line, markers))
                 });
