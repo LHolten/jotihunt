@@ -65,8 +65,11 @@ pub fn option_panel(key: &'static str) {
 async fn my_loc() {
     let mut options = PositionOptions::new();
     options.enable_high_accuracy(true);
+    // the marker is removed from the map when it is dropped,
+    // so it is kept until the next position replaces it
+    let mut marker = None;
     let _ = PositionStream::new_with_options(options)
-        .try_for_each(move |pos| {
+        .try_for_each(|pos| {
             let coords = pos.coords();
             let m = Marker::new(
                 coords.longitude(),
@@ -75,6 +78,7 @@ async fn my_loc() {
                 false,
             );
             m.zoom_to();
+            marker = Some(m);
             ready(Ok(()))
         })
         .await;
