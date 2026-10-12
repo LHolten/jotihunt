@@ -2,7 +2,13 @@ use std::{collections::BTreeMap, rc::Rc, time::Duration};
 
 use comms::{live_updated, LocationEdit};
 use futures::SinkExt;
-use gloo::{dialogs::alert, net::http::Request, timers::future::sleep, utils::document};
+use gloo::{
+    dialogs::{alert, prompt},
+    net::http::Request,
+    storage::{LocalStorage, Storage},
+    timers::future::sleep,
+    utils::{document, window},
+};
 use jotihunt_shared::{
     domain::{Fox, FoxKey},
     ModifyLocation,
@@ -267,19 +273,53 @@ fn location_editor(key: &'static str, fox_names: &[String]) {
     );
 }
 
+const PASSWORD_KEY: &str = "password";
+
+/// Asks for the password until the server accepts it and returns the secret.
+///
+/// The password is sent in an explicit `Authorization` header instead of relying
+/// on the browser login popup, because Safari never shows that popup for
+/// cross-origin requests.
+async fn retrieve_secret() -> String {
+    let address = format!("https://{HOSTNAME}/secret");
+    loop {
+        let password = match LocalStorage::get::<String>(PASSWORD_KEY) {
+            Ok(password) => password,
+            Err(_) => prompt("wachtwoord:", None).unwrap_or_default(),
+        };
+        let auth = window().btoa(&format!(":{password}")).unwrap();
+        let res = Request::get(&address)
+            .header("Authorization", &format!("Basic {auth}"))
+            .send()
+            .await;
+        match res {
+            Ok(res) if res.ok() => {
+                LocalStorage::set(PASSWORD_KEY, password).unwrap();
+                return res.text().await.unwrap();
+            }
+            Ok(res) if res.status() == 401 => {
+                LocalStorage::delete(PASSWORD_KEY);
+                alert("verkeerd wachtwoord");
+            }
+            Ok(res) => {
+                alert(&format!("inloggen mislukt: {}", res.status_text()));
+                sleep(Duration::from_secs(5)).await;
+            }
+            Err(err) => {
+                alert(&format!("inloggen mislukt: {err}"));
+                sleep(Duration::from_secs(5)).await;
+            }
+        }
+    }
+}
+
 fn main() {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 
     leaflet::load_participants(&format!("https://{HOSTNAME}/deelnemers.geojson"));
 
     spawn_local(async {
-        let pass_address = format!("https://{HOSTNAME}/secret");
-        let res = Request::get(&pass_address)
-            .credentials(web_sys::RequestCredentials::Include)
-            .send()
-            .await;
-        let key = res.unwrap().text().await.unwrap();
-        let key = Box::leak(key.into_boxed_str());
+        let key = Box::leak(retrieve_secret().await.into_boxed_str());
 
         let fox_names: Vec<String> =
             gloo::net::http::Request::get(&format!("https://{HOSTNAME}/fox_list.json"))
