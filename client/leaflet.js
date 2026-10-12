@@ -54,6 +54,9 @@ function make_map() {
 
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
+        // osm has no high resolution tiles, so on high dpi screens this
+        // shows the tiles of one zoom level deeper at half their size
+        detectRetina: true,
         attribution: "© OpenStreetMap",
     }).addTo(map);
 
