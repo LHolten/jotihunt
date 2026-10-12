@@ -72,7 +72,7 @@ export function load_participants(url) {
                     const icon = make_icon(false, color);
                     return L.marker(latlng)
                         .setIcon(icon)
-                        .bindTooltip(feature.properties.name)
+                        .bindTooltip(text_tooltip(feature.properties.name))
                         .bindPopup(make_popup(latlng.lat, latlng.lng));
                 },
             }).addTo(map);
@@ -80,6 +80,13 @@ export function load_participants(url) {
             const areas = data.features.map((feature) => feature.properties.area);
             add_legend([...new Set(areas)].sort());
         });
+}
+
+// leaflet renders a string tooltip as html, but names like traccar identifiers are user input
+function text_tooltip(name) {
+    const span = L.DomUtil.create("span");
+    span.textContent = name;
+    return span;
 }
 
 // the coordinates, with links that open the route to them in google maps
@@ -129,7 +136,7 @@ export function add_marker(lat, lng, name, convert) {
         coord = proj4("EPSG:7415", "EPSG:4326", coord);
     }
     let marker = L.marker([coord[1], coord[0]])
-        .bindTooltip(name)
+        .bindTooltip(text_tooltip(name))
         .bindPopup(make_popup(coord[1], coord[0]))
         .addTo(map);
     return marker;
