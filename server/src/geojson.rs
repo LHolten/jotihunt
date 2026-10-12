@@ -51,12 +51,12 @@ pub async fn get_geo(state: &'static AppState) -> anyhow::Result<String> {
 
 pub async fn reload_geojson_loop(state: &'static AppState) {
     loop {
-        // every hour
-        sleep(Duration::from_secs(60 * 60)).await;
         println!("reloading geojson");
         match get_geo(state).await {
             Ok(new) => state.geojson.store(Arc::new(new)),
             Err(err) => println!("error getting geojson: {err:#}"),
         }
+        // every hour
+        sleep(Duration::from_secs(60 * 60)).await;
     }
 }
