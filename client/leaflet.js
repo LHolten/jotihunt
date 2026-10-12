@@ -1,3 +1,7 @@
+function marker_url(color) {
+    return `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`;
+}
+
 function make_icon(large, color) {
     let f;
     if (large) {
@@ -6,7 +10,7 @@ function make_icon(large, color) {
         f = 0.5;
     }
     return new L.Icon({
-        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
+        iconUrl: marker_url(color),
         shadowUrl:
             "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
         iconSize: [25 * f, 41 * f],
@@ -18,7 +22,7 @@ function make_icon(large, color) {
 
 function fox_color(fox) {
     let color_map = {
-        a: "grey",
+        a: "red",
         b: "green",
         c: "blue",
         d: "yellow",
@@ -72,7 +76,26 @@ export function load_participants(url) {
                         .bindPopup([latlng.lat, latlng.lng].toString());
                 },
             }).addTo(map);
+
+            const areas = data.features.map((feature) => feature.properties.area);
+            add_legend([...new Set(areas)].sort());
         });
+}
+
+// shows the participant marker of each area
+function add_legend(areas) {
+    const legend = L.control({ position: "bottomright" });
+    legend.onAdd = () => {
+        const div = L.DomUtil.create("div", "legend");
+        for (const area of areas) {
+            const row = L.DomUtil.create("div", "", div);
+            const icon = L.DomUtil.create("img", "", row);
+            icon.src = marker_url(fox_color(area));
+            row.append(area ?? "onbekend");
+        }
+        return div;
+    };
+    legend.addTo(map);
 }
 
 let orga = add_marker(5.8725166117126575, 51.95402844147237, "orga", false);

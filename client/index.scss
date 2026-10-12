@@ -49,6 +49,21 @@ input[updated=false] {
     z-index: -1;
 }
 
+.legend {
+    background-color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    line-height: 1.5;
+}
+
+.legend img {
+    // the same size as the participant markers
+    width: 12.5px;
+    height: 20.5px;
+    margin-right: 4px;
+    vertical-align: middle;
+}
+
 #page {
     z-index: -2;
 }
