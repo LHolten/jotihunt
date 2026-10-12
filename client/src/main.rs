@@ -1,10 +1,9 @@
-use std::{collections::BTreeMap, rc::Rc, time::Duration};
+use std::{collections::BTreeMap, future::pending, rc::Rc, time::Duration};
 
 use comms::{live_updated, LocationEdit};
-use futures::{channel::mpsc, SinkExt, StreamExt};
+use futures::SinkExt;
 use gloo::{
     dialogs::alert,
-    events::{EventListener, EventListenerOptions},
     net::http::{Request, RequestBuilder, Response},
     storage::{LocalStorage, Storage},
     timers::future::sleep,
@@ -22,8 +21,8 @@ use sycamore::{
     prelude::*,
 };
 
-use wasm_bindgen::JsCast;
-use web_sys::{HtmlFormElement, HtmlInputElement, KeyboardEvent};
+use wasm_bindgen::{JsCast, JsValue};
+use web_sys::{HtmlFormElement, HtmlInputElement, Url};
 
 mod articles;
 mod comms;
@@ -282,10 +281,29 @@ const SECRET_KEY: &str = "secret";
 /// Returns the secret that is needed for all location endpoints.
 ///
 /// The secret is stored, so the password is only needed again after the server
-/// restarts with a new secret. The password is sent in an explicit `Authorization`
-/// header instead of relying on the browser login popup, because Safari never
-/// shows that popup for cross-origin requests.
+/// restarts with a new secret. Without a valid secret the login form is shown and
+/// this never returns, submitting the form leaves the page.
 async fn retrieve_secret() -> String {
+    // the login redirects back with the result in the fragment, it is removed
+    // so it does not end up in bookmarks or the history
+    let url = Url::new(&window().location().href().unwrap()).unwrap();
+    let fragment = url.hash();
+    if !fragment.is_empty() {
+        url.set_hash("");
+        let history = window().history().unwrap();
+        history
+            .replace_state_with_url(&JsValue::NULL, "", Some(&url.href()))
+            .unwrap();
+    }
+
+    if let Some(secret) = fragment.strip_prefix("#secret=") {
+        LocalStorage::set(SECRET_KEY, secret).unwrap();
+    }
+
+    if fragment == "#wrong" {
+        alert("verkeerd wachtwoord");
+    }
+
     if let Ok(secret) = LocalStorage::get::<String>(SECRET_KEY) {
         let check = format!("https://{HOSTNAME}/{secret}/check");
         if authorized(|| Request::get(&check)).await.is_some() {
@@ -293,9 +311,8 @@ async fn retrieve_secret() -> String {
         }
     }
 
-    let secret = log_in().await;
-    LocalStorage::set(SECRET_KEY, &secret).unwrap();
-    secret
+    show_login(&url.href());
+    pending().await
 }
 
 /// Sends the request until the server answers, `None` means it was unauthorized.
@@ -311,54 +328,22 @@ async fn authorized(request: impl Fn() -> RequestBuilder) -> Option<Response> {
     }
 }
 
-/// Shows the login form until the server accepts the password and returns the secret.
-///
-/// Password managers save the password when the form is submitted (even when the
-/// submit is cancelled), so the form is only submitted once the password is correct.
-/// Pressing enter just tries the password.
-async fn log_in() -> String {
-    let element = |id| document().get_element_by_id(id).expect("the login form exists");
+/// Shows the login form, which posts the password to the server.
+fn show_login(redirect: &str) {
+    let element = |id| {
+        document()
+            .get_element_by_id(id)
+            .expect("the login form exists")
+    };
     let form: HtmlFormElement = element("login").unchecked_into();
-    let input: HtmlInputElement = element("password").unchecked_into();
-
-    let (attempted, mut attempts) = mpsc::unbounded();
-    let _on_enter = EventListener::new_with_options(
-        &input,
-        "keydown",
-        EventListenerOptions::enable_prevent_default(),
-        move |event| {
-            if event.unchecked_ref::<KeyboardEvent>().key() == "Enter" {
-                // stops the browser from submitting the form
-                event.prevent_default();
-                let _ = attempted.unbounded_send(());
-            }
-        },
-    );
-    // the password is sent below, the form is only submitted for password managers
-    let _on_submit = EventListener::new_with_options(
-        &form,
-        "submit",
-        EventListenerOptions::enable_prevent_default(),
-        |event| event.prevent_default(),
-    );
-
+    form.set_action(&format!("https://{HOSTNAME}/login"));
+    element("redirect")
+        .unchecked_into::<HtmlInputElement>()
+        .set_value(redirect);
     form.remove_attribute("hidden").unwrap();
-    let _ = input.focus();
-    loop {
-        attempts.next().await;
-        let auth = window().btoa(&format!(":{}", input.value())).unwrap();
-        let login = || {
-            Request::get(&format!("https://{HOSTNAME}/secret"))
-                .header("Authorization", &format!("Basic {auth}"))
-        };
-        if let Some(res) = authorized(login).await {
-            form.request_submit().unwrap();
-            form.set_attribute("hidden", "").unwrap();
-            return res.text().await.unwrap();
-        }
-        alert("verkeerd wachtwoord");
-        input.select();
-    }
+    let _ = element("password")
+        .unchecked_into::<HtmlInputElement>()
+        .focus();
 }
 
 fn main() {

@@ -2,6 +2,7 @@ mod article;
 mod db;
 mod geojson;
 mod location;
+mod login;
 mod status;
 
 use std::{
@@ -36,6 +37,7 @@ use jotihunt_shared::{
     Broadcast, Traccar,
 };
 use location::{create_location, delete_location, modify_location};
+use login::login;
 use rust_query::{
     migration::Config, private::IntoJoinable, Database, DatabaseAsync, Expr, FromExpr, Select,
     Table, TableRow,
@@ -45,7 +47,7 @@ use serde::Serialize;
 use db::{Article, ArticleRow, Location, LocationRow, Schema, Status, StatusRow};
 use status::{retrieve_status, retrieve_status_loop};
 use tokio::sync::broadcast::{self, error::RecvError};
-use tower_http::{cors::CorsLayer, validate_request::ValidateRequestHeaderLayer};
+use tower_http::cors::CorsLayer;
 use uuid::Uuid;
 
 #[tokio::main]
@@ -65,12 +67,9 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(retrieve_status_loop(state));
     tokio::spawn(retrieve_articles_loop(state));
 
+    let password = leak(password);
     let router = Router::new()
-        .route(
-            "/secret",
-            get(move || async move { state.secret.to_string() })
-                .layer(ValidateRequestHeaderLayer::basic("", &password)),
-        )
+        .route("/login", post(move |form| login(state, password, form)))
         .nest(
             "/{key}",
             Router::new()

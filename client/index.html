@@ -22,9 +22,10 @@
 
 <body>
     <div id="panel_column">
-        <!-- a real form, so password managers can fill and save the password,
-             it is only submitted once the password is correct -->
-        <form id="login" hidden>
+        <!-- a normal form post, so password managers fill and save the password like on any site,
+             the server redirects back to `redirect` -->
+        <form id="login" method="post" hidden>
+            <input id="redirect" name="redirect" type="hidden" />
             <label for="password">Wachtwoord:</label>
             <input id="password" name="password" type="password" autocomplete="current-password" required />
         </form>
