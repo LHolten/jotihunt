@@ -98,50 +98,49 @@ pub fn articles() {
             let everything = create_signal(false);
 
             let combined = create_memo(move || {
-                articles.with(|articles| {
-                    status.with(|status| {
-                        let left = articles
-                            .iter()
-                            .filter(|(_, v)| everything.get() || &v.r#type == "hint")
-                            .map(|(k, v)| {
-                                (k.publish_at.clone(), Update::Article(k.clone(), v.clone()))
-                            });
-                        let right = status
-                            .iter()
-                            .filter(|(_, v)| status_check.get() && *v != "green")
-                            .map(|(k, v)| {
-                                (
-                                    k.date_time.clone(),
-                                    Update::Status {
-                                        area: k.fox_name.clone(),
-                                        status: v.clone(),
-                                        until: status
-                                            .range(k..)
-                                            .skip(1)
-                                            .find(|(k2, _)| k2.fox_name == k.fox_name)
-                                            .map(|(k2, _)| k2.date_time.clone()),
-                                    },
-                                )
-                            });
-
-                        let mut res = MergeIter::with_custom_ordering(left, right, |a, b| {
-                            a.0.cmp(&b.0).is_lt()
+                let left: Vec<_> = articles.with(|articles| {
+                    articles
+                        .iter()
+                        .filter(|(_, v)| everything.get() || &v.r#type == "hint")
+                        .map(|(k, v)| (k.publish_at.clone(), Update::Article(k.clone(), v.clone())))
+                        .collect()
+                });
+                let right: Vec<_> = status.with(|status| {
+                    status
+                        .iter()
+                        .filter(|(_, v)| status_check.get() && *v != "green")
+                        .map(|(k, v)| {
+                            (
+                                k.date_time.clone(),
+                                Update::Status {
+                                    area: k.fox_name.clone(),
+                                    status: v.clone(),
+                                    until: status
+                                        .range(k..)
+                                        .skip(1)
+                                        .find(|(k2, _)| k2.fox_name == k.fox_name)
+                                        .map(|(k2, _)| k2.date_time.clone()),
+                                },
+                            )
                         })
+                        .collect()
+                });
+
+                let mut res =
+                    MergeIter::with_custom_ordering(left, right, |a, b| a.0.cmp(&b.0).is_lt())
                         .collect::<Vec<_>>();
-                        res.reverse();
-                        res.dedup();
-                        res
-                    })
-                })
+                res.reverse();
+                res.dedup();
+                res
             });
 
             let last_updated = Cell::new(js_sys::Date::now());
             create_effect(move || {
-                if let Some((time, item)) = combined.get_clone().first() {
-                    let most_recent = js_sys::Date::parse(time);
+                if let Some((time, item)) = combined.with(|combined| combined.first().cloned()) {
+                    let most_recent = js_sys::Date::parse(&time);
                     if most_recent > last_updated.get() {
                         last_updated.set(most_recent);
-                        notify(item);
+                        notify(&item);
                     }
                 }
             });

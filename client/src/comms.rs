@@ -137,7 +137,7 @@ where
     let data = live_table(address);
     // the signal is only used as a `Copy` handle to the sender
     let queue_write = create_signal(queue_write);
-    let send = move |edit| queue_write.with(|queue| queue.unbounded_send(edit).unwrap());
+    let send = move |edit| queue_write.get_clone().unbounded_send(edit).unwrap();
     (data, send)
 }
 

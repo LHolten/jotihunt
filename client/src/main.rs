@@ -57,30 +57,28 @@ fn location_editor(key: &'static str, fox_names: Vec<String>) {
                 create_signal(format!("{year:0>4}-{month:0>2}-{day:0>2}"))
             };
 
-            let check_day = move |k: &FoxKey| current_day.with(|day| *day == k.day);
-
-            let old_values = create_memo(move || {
-                let time = current_time.get_clone();
+            // only the keys, so a row stays when its coordinates change
+            let current_keys = create_memo(move || {
+                let (day, time) = (current_day.get_clone(), current_time.get_clone());
                 data.with(|data| {
-                    data.iter()
-                        .filter(|(k, _)| k.time == time && check_day(k))
-                        .map(|(k, v)| (k.clone(), v.clone()))
+                    data.keys()
+                        .filter(|k| k.day == day && k.time == time)
+                        .cloned()
                         .collect::<Vec<_>>()
                 })
             });
 
             {
                 let today_by_fox = create_memo(move || {
+                    let day = current_day.get_clone();
                     let mut today_by_fox: BTreeMap<_, Vec<_>> = BTreeMap::new();
                     data.with(|data| {
-                        data.iter().for_each(|(k, v)| {
-                            if check_day(k) {
-                                today_by_fox
-                                    .entry(k.fox_name.clone())
-                                    .or_default()
-                                    .push((k.time.clone(), v.clone()));
-                            }
-                        })
+                        for (k, v) in data.iter().filter(|(k, _)| k.day == day) {
+                            today_by_fox
+                                .entry(k.fox_name.clone())
+                                .or_default()
+                                .push((k.time.clone(), v.clone()));
+                        }
                     });
                     today_by_fox.into_iter().collect::<Vec<_>>()
                 });
@@ -107,9 +105,10 @@ fn location_editor(key: &'static str, fox_names: Vec<String>) {
             let new_fox = create_signal(fox_names[0].clone());
 
             let slice_names = create_memo(move || {
+                let day = current_day.get_clone();
                 let mut names: Vec<_> = data.with(|data| {
                     data.keys()
-                        .filter(|k| check_day(k))
+                        .filter(|k| k.day == day)
                         .map(|k| k.time.clone())
                         .collect()
                 });
@@ -144,11 +143,11 @@ fn location_editor(key: &'static str, fox_names: Vec<String>) {
                     input(r#type="time", bind:value=current_time)
                     input(r#type="button", value="Toevoegen", on:click=move |_| {
                         let hunt_coord = hunt_coord.get_clone();
-                        if current_time.with(String::is_empty) {
+                        if current_time.get_clone().is_empty() {
                             alert("geen tijd geselecteerd");
                             return
                         }
-                        if area.with(String::is_empty) {
+                        if area.get_clone().is_empty() {
                             alert("geen vos geselecteerd");
                             return
                         }
@@ -178,7 +177,7 @@ fn location_editor(key: &'static str, fox_names: Vec<String>) {
                             Keyed(
                                 list=slice_names,
                                 view=move |key| {
-                                    let selected = current_time.with(|time| *time == key);
+                                    let selected = current_time.get_clone() == key;
                                     let label = key.clone();
                                     view!{ option(value=key, selected=selected){(label)} }
                                 },
@@ -189,20 +188,36 @@ fn location_editor(key: &'static str, fox_names: Vec<String>) {
                     }
                     hr()
                     Keyed(
-                        list=old_values,
-                        view=move |(key, fox)| {
+                        list=current_keys,
+                        view=move |key: FoxKey| {
                             let fox_name = key.fox_name.clone();
-                            let latitude = create_signal(fox.latitude.clone());
-                            let longitude = create_signal(fox.longitude.clone());
-                            // the signal is only used as a `Copy` handle to the old value
-                            let old = create_signal((key, fox));
+                            // the signal is only used as a `Copy` handle to the key
+                            let key = create_signal(key);
+                            // selectors only update when this field of this fox changes
+                            let saved = move |field: fn(&Fox) -> &String| create_selector(move || {
+                                let key = key.get_clone();
+                                data.with(|data| data.get(&key).map(field).cloned()).unwrap_or_default()
+                            });
+                            let saved_latitude = saved(|fox| &fox.latitude);
+                            let saved_longitude = saved(|fox| &fox.longitude);
+                            // these track what is in the text field
+                            let latitude = create_signal(String::new());
+                            let longitude = create_signal(String::new());
+                            // write data from upstream in the field
+                            create_effect(move || latitude.set(saved_latitude.get_clone()));
+                            create_effect(move || longitude.set(saved_longitude.get_clone()));
+                            // what the current WIP field values would be
                             let new = move || Fox {
-                                latitude: latitude.with(|l| l.trim().to_string()),
-                                longitude: longitude.with(|l| l.trim().to_string()),
+                                latitude: latitude.get_clone().trim().to_string(),
+                                longitude: longitude.get_clone().trim().to_string(),
                             };
                             let send_update = move || {
-                                let (key, old) = old.get_clone();
-                                send_edit(LocationEdit::Modify(key, ModifyLocation { old, new: new() }));
+                                let old = Fox {
+                                    latitude: saved_latitude.get_clone(),
+                                    longitude: saved_longitude.get_clone(),
+                                };
+                                let edit = ModifyLocation { old, new: new() };
+                                send_edit(LocationEdit::Modify(key.get_clone(), edit));
                             };
                             view!{
                                 div(class="field") {
@@ -217,31 +232,32 @@ fn location_editor(key: &'static str, fox_names: Vec<String>) {
                                         }
                                     })
                                     input(size="7", bind:value=latitude, placeholder="xxxx", "updated"=move || {
-                                        old.with(|(_, old)| latitude.with(|l| *l == old.latitude)).to_string()
+                                        (latitude.get_clone() == saved_latitude.get_clone()).to_string()
                                     }, on:change=move |_|{
                                         send_update();
                                     })
                                     input(size="7", bind:value=longitude, placeholder="yyyy", "updated"=move || {
-                                        old.with(|(_, old)| longitude.with(|l| *l == old.longitude)).to_string()
+                                        (longitude.get_clone() == saved_longitude.get_clone()).to_string()
                                     }, on:change=move |_|{
                                         send_update();
                                     })
                                 }
                             }
                         },
-                        key=|(key, fox)| (key.clone(), fox.clone())
+                        key=|key| key.clone()
                     )
                     hr()
                     div(class="field"){
                         select(bind:value=new_fox) {(fox_options_clone)}
                         input(r#type="button", value="Verwijderen", on:click=move |_|{
-                            if current_time.with(String::is_empty) {
+                            if current_time.get_clone().is_empty() {
                                 alert("Selecteer eerst een tijdstip");
                                 return;
                             }
                             let new_fox = new_fox.get_clone();
-                            let old_values = old_values.get_clone();
-                            let Some((_, old_value)) = old_values.iter().find(|x| x.0.fox_name == new_fox) else {
+                            let key = current_keys.with(|keys| keys.iter().find(|key| key.fox_name == new_fox).cloned());
+                            let old_value = key.and_then(|key| data.with(|data| data.get(&key).cloned()));
+                            let Some(old_value) = old_value else {
                                 alert("Er is geen coordinaat in dat deelgebied");
                                 return
                             };
