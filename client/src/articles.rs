@@ -8,17 +8,8 @@ use gloo::{
 use jotihunt_shared::domain::{ArticleKey, SavedArticle, StatusKey};
 use js_sys::encode_uri_component;
 use merging_iterator::MergeIter;
-use sycamore::{
-    flow::Keyed,
-    futures::spawn_local_scoped,
-    generic_node::GenericNode,
-    prelude::{
-        create_effect, create_memo, create_node_ref, create_ref, create_signal, BoundedScope,
-    },
-    view,
-    web::DomNode,
-};
-use wasm_bindgen::JsValue;
+use sycamore::{futures::spawn_local_scoped, prelude::*};
+use wasm_bindgen::{JsCast, JsValue};
 use web_sys::Element;
 
 use crate::{comms::live_table, HOSTNAME};
@@ -34,7 +25,7 @@ enum Update {
 }
 
 impl Update {
-    fn view<'cx>(self, time: String, cx: BoundedScope<'cx, 'cx>) -> view::View<DomNode> {
+    fn view(self, time: String) -> View {
         let date = js_sys::Date::new_0();
         date.set_time(js_sys::Date::parse(&time));
         let hours = date.get_hours();
@@ -59,7 +50,7 @@ impl Update {
                     "red" => "rood".to_owned(),
                     _ => status,
                 };
-                view! {cx,
+                view! {
                     p {
                         time(datetime=time) {(time_short)} " "
                         (area) " is " (status) (extra)
@@ -68,11 +59,11 @@ impl Update {
             }
             Update::Article(key, article) => {
                 let title = format!("{time_short}: {}", article.title);
-                view! {cx,
+                view! {
                     p {
-                        input (type="button", on:click = move |_| {
+                        input (r#type="button", on:click = move |_| {
                             update_page(&key, &article);
-                        }, value=(title))
+                        }, value=title)
                     }
                 }
             }
@@ -98,50 +89,55 @@ pub fn articles() {
         .expect("there is an articles element");
 
     sycamore::render_to(
-        |cx| {
+        || {
             let articles =
-                live_table::<ArticleKey, SavedArticle>(cx, format!("https://{HOSTNAME}/articles"));
-            let status = live_table::<StatusKey, String>(cx, format!("https://{HOSTNAME}/status"));
+                live_table::<ArticleKey, SavedArticle>(format!("https://{HOSTNAME}/articles"));
+            let status = live_table::<StatusKey, String>(format!("https://{HOSTNAME}/status"));
 
-            let status_check = create_signal(cx, false);
-            let everything = create_signal(cx, false);
+            let status_check = create_signal(false);
+            let everything = create_signal(false);
 
-            let combined = create_memo(cx, || {
-                let get = articles.get();
-                let left = get
-                    .iter()
-                    .filter(|(_, v)| *everything.get() || &v.r#type == "hint")
-                    .map(|(k, v)| (k.publish_at.clone(), Update::Article(k.clone(), v.clone())));
-                let get = status.get();
-                let right = get
-                    .iter()
-                    .filter(|(_, v)| *status_check.get() && *v != "green")
-                    .map(|(k, v)| {
-                        (
-                            k.date_time.clone(),
-                            Update::Status {
-                                area: k.fox_name.clone(),
-                                status: v.clone(),
-                                until: get
-                                    .range(k..)
-                                    .skip(1)
-                                    .find(|(k2, _)| k2.fox_name == k.fox_name)
-                                    .map(|(k2, _)| k2.date_time.clone()),
-                            },
-                        )
-                    });
+            let combined = create_memo(move || {
+                articles.with(|articles| {
+                    status.with(|status| {
+                        let left = articles
+                            .iter()
+                            .filter(|(_, v)| everything.get() || &v.r#type == "hint")
+                            .map(|(k, v)| {
+                                (k.publish_at.clone(), Update::Article(k.clone(), v.clone()))
+                            });
+                        let right = status
+                            .iter()
+                            .filter(|(_, v)| status_check.get() && *v != "green")
+                            .map(|(k, v)| {
+                                (
+                                    k.date_time.clone(),
+                                    Update::Status {
+                                        area: k.fox_name.clone(),
+                                        status: v.clone(),
+                                        until: status
+                                            .range(k..)
+                                            .skip(1)
+                                            .find(|(k2, _)| k2.fox_name == k.fox_name)
+                                            .map(|(k2, _)| k2.date_time.clone()),
+                                    },
+                                )
+                            });
 
-                let mut res =
-                    MergeIter::with_custom_ordering(left, right, |a, b| a.0.cmp(&b.0).is_lt())
+                        let mut res = MergeIter::with_custom_ordering(left, right, |a, b| {
+                            a.0.cmp(&b.0).is_lt()
+                        })
                         .collect::<Vec<_>>();
-                res.reverse();
-                res.dedup();
-                res
+                        res.reverse();
+                        res.dedup();
+                        res
+                    })
+                })
             });
 
-            let last_updated = create_ref(cx, Cell::new(js_sys::Date::now()));
-            create_effect(cx, || {
-                if let Some((time, item)) = combined.get().first() {
+            let last_updated = Cell::new(js_sys::Date::now());
+            create_effect(move || {
+                if let Some((time, item)) = combined.get_clone().first() {
                     let most_recent = js_sys::Date::parse(time);
                     if most_recent > last_updated.get() {
                         last_updated.set(most_recent);
@@ -150,20 +146,18 @@ pub fn articles() {
                 }
             });
 
-            view! {cx,
+            view! {
                 summary {"Tijdlijn"}
                 div(class="field") {
-                    label(for="everything"){"Berichten: "}
-                    input(type="checkbox", id="everything", bind:checked=everything)
+                    label(r#for="everything"){"Berichten: "}
+                    input(r#type="checkbox", id="everything", bind:checked=everything)
 
-                    label(for="status_check"){"Status: "}
-                    input(type="checkbox", id="status_check", bind:checked=status_check)
+                    label(r#for="status_check"){"Status: "}
+                    input(r#type="checkbox", id="status_check", bind:checked=status_check)
                 }
                 Keyed(
-                    iterable=combined,
-                    view=move|cx, (time, update)| {
-                        update.view(time, cx)
-                    },
+                    list=combined,
+                    view=|(time, update)| update.view(time),
                     key=|x|x.clone()
                 )
             }
@@ -211,15 +205,18 @@ fn update_page(key: &ArticleKey, article: &SavedArticle) {
     page.set_inner_html("");
 
     sycamore::render_to(
-        |cx| {
-            let content = create_node_ref(cx);
-            spawn_local_scoped(cx, async move {
+        move || {
+            let content = create_node_ref();
+            spawn_local_scoped(async move {
                 let html = article_content(&key).await;
-                content.get::<DomNode>().dangerously_set_inner_html(&html);
+                content
+                    .get()
+                    .unchecked_into::<Element>()
+                    .set_inner_html(&html);
             });
 
-            view! {cx,
-                input(type="button", value="Terug", on:click=|_|{
+            view! {
+                input(r#type="button", value="Terug", on:click=|_|{
                     reset_page()
                 })
                 h1 {(article.title)}

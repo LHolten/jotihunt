@@ -14,33 +14,33 @@ pub fn option_panel(key: &'static str) {
         .expect("there is a add_point button");
 
     sycamore::render_to(
-        |cx| {
-            let show_live = create_signal(cx, true);
+        move || {
+            let show_live = create_signal(true);
 
-            create_effect_scoped(cx, move |cx| {
-                if *show_live.get() {
+            create_effect(move || {
+                if show_live.get() {
                     let address = format!("https://{HOSTNAME}/{key}/live");
-                    spawn_local_scoped(cx, read_live(address))
+                    spawn_local_scoped(read_live(address))
                 }
             });
 
-            let show_me = create_signal(cx, false);
+            let show_me = create_signal(false);
 
-            create_effect_scoped(cx, |cx| {
-                if *show_me.get() {
-                    spawn_local_scoped(cx, my_loc())
+            create_effect(move || {
+                if show_me.get() {
+                    spawn_local_scoped(my_loc())
                 }
             });
 
-            view! {cx,
+            view! {
                 summary {"Opties"}
                 div {"Deze url invullen in je traccar client:"}
                 pre {(format!("https://{HOSTNAME}/traccar"))}
                 div(class="field"){
-                    label(for="traccar"){"Traccar bekijken:"}
-                    input(id="traccar", type="checkbox", bind:checked=show_live)
-                    label(for="mijn"){"Mijn locatie:"}
-                    input(id="mijn", type="checkbox", bind:checked=show_me)
+                    label(r#for="traccar"){"Traccar bekijken:"}
+                    input(id="traccar", r#type="checkbox", bind:checked=show_live)
+                    label(r#for="mijn"){"Mijn locatie:"}
+                    input(id="mijn", r#type="checkbox", bind:checked=show_me)
                 }
             }
         },

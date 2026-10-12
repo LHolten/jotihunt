@@ -2,11 +2,7 @@ use std::{collections::BTreeMap, future::ready};
 
 use crate::leaflet::Marker;
 use crate::HOSTNAME;
-use futures::{
-    self,
-    channel::mpsc::{self, UnboundedSender},
-    Stream, StreamExt,
-};
+use futures::{self, channel::mpsc, Stream, StreamExt};
 use gloo::{
     dialogs::alert,
     net::{eventsource::futures::EventSource, http::Request},
@@ -17,8 +13,7 @@ use js_sys::{encode_uri_component, Date, Uint8Array};
 use serde::de::DeserializeOwned;
 use sycamore::{
     futures::spawn_local_scoped,
-    prelude::{create_ref, create_signal, BoundedScope, ReadSignal},
-    reactive::Signal,
+    reactive::{create_signal, ReadSignal, Signal},
 };
 
 pub enum LocationEdit {
@@ -81,7 +76,7 @@ pub fn event_messages(address: String) -> impl Stream<Item = String> {
         })
 }
 
-async fn read_data<K, V>(address: String, data: &Signal<std::collections::BTreeMap<K, V>>)
+async fn read_data<K, V>(address: String, data: Signal<BTreeMap<K, V>>)
 where
     K: DeserializeOwned + Clone + Ord,
     V: DeserializeOwned + Clone,
@@ -95,10 +90,10 @@ where
                 key,
                 value: Some(value),
             } => {
-                data.modify().insert(key, value);
+                data.update(|data| data.insert(key, value));
             }
             Broadcast::Update { key, value: None } => {
-                data.modify().remove(&key);
+                data.update(|data| data.remove(&key));
             }
         }
     }
@@ -112,38 +107,38 @@ where
 }
 
 /// All rows of the table with server sent events at `address`, kept up to date.
-pub fn live_table<'cx, K, V>(
-    cx: BoundedScope<'cx, 'cx>,
-    address: String,
-) -> &'cx ReadSignal<BTreeMap<K, V>>
+pub fn live_table<K, V>(address: String) -> ReadSignal<BTreeMap<K, V>>
 where
-    K: DeserializeOwned + Clone + Ord,
-    V: DeserializeOwned + Clone,
+    K: DeserializeOwned + Clone + Ord + 'static,
+    V: DeserializeOwned + Clone + 'static,
 {
-    let data = create_signal(cx, BTreeMap::<K, V>::new());
-    spawn_local_scoped(cx, read_data(address, data));
-    data
+    let data = create_signal(BTreeMap::<K, V>::new());
+    spawn_local_scoped(read_data(address, data));
+    *data
 }
 
-pub fn live_updated<'cx, K, V>(
-    cx: BoundedScope<'cx, 'cx>,
+/// Like [live_table], but also returns a function to edit the table.
+pub fn live_updated<K, V>(
     key: &str,
     name: &str,
 ) -> (
-    &'cx ReadSignal<BTreeMap<K, V>>,
-    &'cx UnboundedSender<LocationEdit>,
+    ReadSignal<BTreeMap<K, V>>,
+    impl Fn(LocationEdit) + Copy + 'static,
 )
 where
-    K: DeserializeOwned + Clone + Ord,
-    V: DeserializeOwned + Clone,
+    K: DeserializeOwned + Clone + Ord + 'static,
+    V: DeserializeOwned + Clone + 'static,
 {
     let address = format!("https://{HOSTNAME}/{key}/{name}");
 
     let (queue_write, queue_read) = mpsc::unbounded();
 
-    spawn_local_scoped(cx, write_data(queue_read, address.clone()));
-    let data = live_table(cx, address);
-    (data, create_ref(cx, queue_write))
+    spawn_local_scoped(write_data(queue_read, address.clone()));
+    let data = live_table(address);
+    // the signal is only used as a `Copy` handle to the sender
+    let queue_write = create_signal(queue_write);
+    let send = move |edit| queue_write.with(|queue| queue.unbounded_send(edit).unwrap());
+    (data, send)
 }
 
 // creates a marker if both coordinates are valid
