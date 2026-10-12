@@ -73,13 +73,31 @@ export function load_participants(url) {
                     return L.marker(latlng)
                         .setIcon(icon)
                         .bindTooltip(feature.properties.name)
-                        .bindPopup([latlng.lat, latlng.lng].toString());
+                        .bindPopup(make_popup(latlng.lat, latlng.lng));
                 },
             }).addTo(map);
 
             const areas = data.features.map((feature) => feature.properties.area);
             add_legend([...new Set(areas)].sort());
         });
+}
+
+// the coordinates, with links that open the route to them in google maps
+// without an origin google maps starts at the current location
+function make_popup(lat, lng) {
+    const div = L.DomUtil.create("div");
+    div.append([lat, lng].toString());
+    const links = L.DomUtil.create("div", "", div);
+    const modes = { driving: "Route met de auto", walking: "Route lopend" };
+    for (const [mode, label] of Object.entries(modes)) {
+        const link = L.DomUtil.create("a", "", links);
+        link.href = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=${mode}`;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = label;
+        links.append(" ");
+    }
+    return div;
 }
 
 // shows the participant marker of each area
@@ -112,7 +130,7 @@ export function add_marker(lat, lng, name, convert) {
     }
     let marker = L.marker([coord[1], coord[0]])
         .bindTooltip(name)
-        .bindPopup([coord[1], coord[0]].toString())
+        .bindPopup(make_popup(coord[1], coord[0]))
         .addTo(map);
     return marker;
 }
