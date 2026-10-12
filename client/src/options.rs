@@ -3,7 +3,6 @@ use std::{collections::HashMap, future::ready};
 use futures::{channel::oneshot, FutureExt, StreamExt, TryStreamExt};
 use gloo::{console::console_dbg, dialogs::alert, timers::future::TimeoutFuture, utils::document};
 use jotihunt_shared::{domain::Fox, Traccar};
-use js_sys::encode_uri_component;
 use mk_geolocation::{future::PositionStream, PositionOptions};
 use qrcode::{render::svg, QrCode};
 use sycamore::{futures::spawn_local_scoped, prelude::*};
@@ -35,10 +34,9 @@ pub fn option_panel(key: &'static str) {
             });
 
             let traccar_url = format!("https://{HOSTNAME}/traccar");
-            // opens the traccar client app with these settings filled in
+            // the traccar client reads these settings from the url
             let traccar_config = format!(
-                "org.traccar.client://?url={}&accuracy=high&distance=15&heartbeat=600&stop_detection=true&buffer=false",
-                String::from(encode_uri_component(&traccar_url))
+                "{traccar_url}?accuracy=high&distance=15&interval=300&angle=0&heartbeat=600&stop_detection=true&buffer=false"
             );
             // for scanning with a phone, the quiet zone keeps it readable on the green panel
             let traccar_qr = QrCode::new(&traccar_config)
@@ -49,8 +47,8 @@ pub fn option_panel(key: &'static str) {
 
             view! {
                 summary {"Opties"}
-                div {"Klik om je traccar client in te stellen, of vul de url zelf in:"}
-                pre {a(href=traccar_config) {(traccar_url)}}
+                div {"Scan de code met je traccar client en pas de device identifier aan"}
+                pre {(traccar_url)}
                 div(dangerously_set_inner_html=traccar_qr)
                 div(class="field"){
                     label(r#for="traccar"){"Traccar bekijken:"}
