@@ -8,9 +8,8 @@ mod status;
 use std::{
     collections::HashMap,
     convert::Infallible,
-    fs::{read_to_string, set_permissions, File, Permissions},
+    fs::{read_to_string, File},
     io::Write,
-    os::unix::fs::PermissionsExt,
     sync::Arc,
 };
 
@@ -189,28 +188,37 @@ async fn main() -> anyhow::Result<()> {
         // the client is served from a different origin
         .layer(CorsLayer::very_permissive());
 
-    // debug builds put caddy in front of a TCP port for local testing with `trunk serve`
-    if cfg!(debug_assertions) {
-        let addr = "127.0.0.1:3001";
-        let listener = tokio::net::TcpListener::bind(addr).await?;
-        std::process::Command::new("caddy")
-            .args([
-                "reverse-proxy",
-                "--from",
-                "https://localhost:3000",
-                "--disable-redirects",
-            ])
-            .args(["--to", addr])
-            .spawn()
-            .context("failed to start caddy, is it installed?")?;
-        println!("listening on https://localhost:3000");
-        axum::serve(listener, router).await?;
-    } else {
+    // release builds listen on a unix socket for the reverse proxy
+    #[cfg(unix)]
+    if !cfg!(debug_assertions) {
+        use std::{
+            fs::{set_permissions, Permissions},
+            os::unix::fs::PermissionsExt,
+        };
+
         let path = "/run/jotihunt/socket";
         let listener = tokio::net::UnixListener::bind(path)?;
         set_permissions(path, Permissions::from_mode(0o777))?;
         axum::serve(listener, router).await?;
+        return Ok(());
     }
+
+    // debug builds put caddy in front of a TCP port for local testing with `trunk serve`,
+    // this is also what platforms without unix sockets do
+    let addr = "127.0.0.1:3001";
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    std::process::Command::new("caddy")
+        .args([
+            "reverse-proxy",
+            "--from",
+            "https://localhost:3000",
+            "--disable-redirects",
+        ])
+        .args(["--to", addr])
+        .spawn()
+        .context("failed to start caddy, is it installed?")?;
+    println!("listening on https://localhost:3000");
+    axum::serve(listener, router).await?;
 
     Ok(())
 }

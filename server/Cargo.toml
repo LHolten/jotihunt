@@ -21,3 +21,7 @@ reqwest = { version = "0.13.5", features = ["json", "rustls"], default-features 
 serde_json = "1.0"
 arc-swap = "1.9.2"
 rust-query = "0.10.0"
+
+# there is no system sqlite to link against on windows, so it is compiled from source
+[target.'cfg(windows)'.dependencies]
+rust-query = { version = "0.10.0", features = ["bundled"] }
