@@ -147,21 +147,24 @@ where
 }
 
 // creates a marker if both coordinates are valid
-// first tries converting fom RD, then accepts lat long
 pub fn make_marker(fox: &Fox, name: &str) -> Option<Marker> {
-    fn try_rd(fox: &Fox, name: &str) -> Option<Marker> {
-        Some(Marker::new(
-            make_value(&fox.latitude)?,
-            make_value(&fox.longitude)?,
-            name.to_owned(),
-            true,
-        ))
+    let (x, y, convert) = parse_coord(&fox.latitude, &fox.longitude)?;
+    Some(Marker::new(x, y, name.to_owned(), convert))
+}
+
+// parses both sides of a coordinate, returns the marker position and if it is RD
+// RD needs both sides, otherwise each side can be decimal or degrees minutes seconds
+fn parse_coord(lat: &str, long: &str) -> Option<(f64, f64, bool)> {
+    fn try_rd(lat: &str, long: &str) -> Option<(f64, f64, bool)> {
+        Some((make_value(lat)?, make_value(long)?, true))
     }
-    try_rd(fox, name).or_else(|| {
-        Some(Marker::new(
-            fox.longitude.parse().ok()?,
-            fox.latitude.parse().ok()?,
-            name.to_owned(),
+    fn degrees(part: &str, pos: &str, neg: &str, max: f64) -> Option<f64> {
+        part.parse().ok().or_else(|| parse_dms(part, pos, neg, max))
+    }
+    try_rd(lat, long).or_else(|| {
+        Some((
+            degrees(long, "E", "W", 180.0)?,
+            degrees(lat, "N", "S", 90.0)?,
             false,
         ))
     })
@@ -169,7 +172,6 @@ pub fn make_marker(fox: &Fox, name: &str) -> Option<Marker> {
 
 // checks if the given value is a valid 4 digit number
 fn make_value(input: &str) -> Option<f64> {
-    // log!("{}", input);
     let Ok(val) = input.parse::<u32>() else {
         return None;
     };
@@ -177,4 +179,49 @@ fn make_value(input: &str) -> Option<f64> {
         return None;
     };
     Some((val * 100) as f64)
+}
+
+// parses a single degrees, minutes, seconds value like `52°00'35.4"N`
+fn parse_dms(part: &str, pos: &str, neg: &str, max: f64) -> Option<f64> {
+    let (a, part) = part.split_once('°')?;
+    let (b, part) = part.split_once('\'')?;
+    let (c, end) = part.split_once('"')?;
+    let a = a.parse::<u32>().ok()?;
+    let b = b.parse::<u32>().ok()?;
+    let c = c.parse::<f64>().ok()?;
+
+    let sign = match end {
+        e if e == pos => 1.0,
+        e if e == neg => -1.0,
+        _ => return None,
+    };
+    if 60 <= b {
+        return None;
+    }
+    if c < 0. || 60. <= c {
+        return None;
+    }
+
+    let value = a as f64 + b as f64 / 60. + c / 3600.;
+
+    (value <= max).then_some(sign * value)
+}
+
+#[test]
+fn parse() {
+    let (x, y, rd) = parse_coord(r#"52°00'35.4"N"#, r#"4°25'08.7"E"#).unwrap();
+    assert!(!rd);
+    assert!((y - 52.009833).abs() < 1e-6);
+    assert!((x - 4.419083).abs() < 1e-6);
+    let (x, y, _) = parse_coord(r#"52°00'35.4"S"#, r#"4°25'08.7"W"#).unwrap();
+    assert!(x < 0.0 && y < 0.0);
+    assert_eq!(
+        parse_coord("51.95", r#"4°25'08.7"E"#).map(|c| c.1),
+        Some(51.95)
+    );
+    assert_eq!(
+        parse_coord("1234", "5678"),
+        Some((123400.0, 567800.0, true))
+    );
+    assert!(parse_coord("abc", "5.87").is_none());
 }

@@ -129,7 +129,7 @@ fn location_editor(key: &'static str, fox_names: &[String]) {
             view! {cx,
                 summary {"Coordinaten"}
                 div(class="field") {
-                    input(bind:value=hunt_coord, placeholder="xxxx, yyyy of 51.xxx, 4.yyy")
+                    input(bind:value=hunt_coord, placeholder="xxxx, yyyy of 51.xxx, 4.yyy of 52°xx'xx.x\"N 4°yy'yy.y\"E")
                 }
                 div(class="field") {
                     select(bind:value=area) {(fox_options)}
@@ -144,8 +144,9 @@ fn location_editor(key: &'static str, fox_names: &[String]) {
                             alert("geen vos geselecteerd");
                             return
                         }
-                        let Some((lat, long)) = hunt_coord.split_once(',') else {
-                            alert("coordinaat heeft geen comma");
+                        let Some((lat, long)) = hunt_coord.split_once(',')
+                            .or_else(|| hunt_coord.trim().split_once(char::is_whitespace)) else {
+                            alert("coordinaat heeft geen comma of spatie");
                             return
                         };
                         let edit = LocationEdit::Create(
