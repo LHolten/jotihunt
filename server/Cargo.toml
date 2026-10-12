@@ -11,7 +11,6 @@ futures-util = { version = "0.3.24", default-features = false }
 async-stream = "0.3.3"
 jotihunt-shared = { path = "../shared" }
 serde = { version = "1.0.144", features = ["derive"] }
-postcard = { version = "1.0.2", features = ["use-std"], default-features = false }
 uuid = { version = "1.1.2", features = ["serde"], default-features = false }
 
 axum = { version = "0.8", features = ["query", "tokio", "http1", "json"], default-features = false }

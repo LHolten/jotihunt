@@ -15,7 +15,6 @@ js-sys = { version = "0.3.60", default-features = false }
 sycamore = { version = "0.8.1", features = ["suspense", "web"], default-features = false }
 gloo = { version = "0.8.0", features = ["futures"] }
 serde = { version = "1.0.144", default-features = false }
-postcard = { version = "1.0.2", features = ["use-std"], default-features= false }
 serde_json = "1.0"
 futures = { version = "0.3.24", default-features = false }
 console_error_panic_hook = "0.1.7"

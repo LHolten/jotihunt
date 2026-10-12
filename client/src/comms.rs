@@ -38,14 +38,14 @@ async fn write_data(mut queue_read: mpsc::UnboundedReceiver<LocationEdit>, addre
         };
         let (req, bin, create) = match edit {
             LocationEdit::Create(key, fox) => {
-                (Request::post(&path(&key)), postcard::to_stdvec(&fox), true)
+                (Request::post(&path(&key)), serde_json::to_vec(&fox), true)
             }
             LocationEdit::Modify(key, edit) => {
-                (Request::put(&path(&key)), postcard::to_stdvec(&edit), false)
+                (Request::put(&path(&key)), serde_json::to_vec(&edit), false)
             }
             LocationEdit::Delete(key, old) => (
                 Request::delete(&path(&key)),
-                postcard::to_stdvec(&old),
+                serde_json::to_vec(&old),
                 false,
             ),
         };

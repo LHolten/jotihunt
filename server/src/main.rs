@@ -88,20 +88,20 @@ async fn main() -> anyhow::Result<()> {
                 .route(
                     "/locations/{day}/{time}/{fox_name}",
                     post(move |Path(key): Path<FoxKey>, body: Bytes| async move {
-                        match postcard::from_bytes(&body) {
+                        match serde_json::from_slice(&body) {
                             Ok(fox) => create_location(state, key, fox).await,
                             Err(_) => StatusCode::BAD_REQUEST,
                         }
                     })
                     .put(move |Path(key): Path<FoxKey>, body: Bytes| async move {
-                        match postcard::from_bytes(&body) {
+                        match serde_json::from_slice(&body) {
                             Ok(edit) => modify_location(state, key, edit).await,
                             Err(_) => StatusCode::BAD_REQUEST,
                         }
                     })
                     .delete(
                         move |Path(key): Path<FoxKey>, body: Bytes| async move {
-                            match postcard::from_bytes(&body) {
+                            match serde_json::from_slice(&body) {
                                 Ok(old) => delete_location(state, key, old).await,
                                 Err(_) => StatusCode::BAD_REQUEST,
                             }
