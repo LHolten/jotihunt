@@ -4,6 +4,7 @@ mod geojson;
 mod location;
 mod login;
 mod status;
+mod traccar;
 
 use std::{
     collections::HashMap,
@@ -20,7 +21,7 @@ use article::{article_content, retrieve_articles_loop};
 use async_stream::stream;
 use axum::{
     body::Bytes,
-    extract::{Json, Path, Query, Request},
+    extract::{Path, Request},
     http::StatusCode,
     middleware::Next,
     response::{
@@ -28,7 +29,7 @@ use axum::{
         IntoResponse,
     },
     routing::{any, get, post},
-    RequestExt, Router,
+    Router,
 };
 use futures_util::{Stream, StreamExt};
 use geojson::{get_geo, reload_geojson_loop};
@@ -48,6 +49,7 @@ use db::{Article, ArticleRow, Location, LocationRow, Schema, Status, StatusRow};
 use status::{retrieve_status, retrieve_status_loop};
 use tokio::sync::broadcast::{self, error::RecvError};
 use tower_http::cors::CorsLayer;
+use traccar::{live_events, receive_location};
 use uuid::Uuid;
 
 #[tokio::main]
@@ -128,23 +130,8 @@ async fn main() -> anyhow::Result<()> {
         )
         .route(
             "/traccar",
-            any(move |mut req: Request| async move {
-                let traccar = match req.extract_parts::<Query<Traccar>>().await {
-                    Ok(t) => t.0,
-                    Err(_e) => {
-                        let json: Json<NewTraccar> = match req.extract().await {
-                            Ok(v) => v,
-                            Err(e) => return e.into_response(),
-                        };
-                        Traccar {
-                            id: json.0.device_id,
-                            lat: json.0.location.coords.latitude.to_string(),
-                            lon: json.0.location.coords.longitude.to_string(),
-                        }
-                    }
-                };
-                let _ = state.live_traccar.send(traccar);
-                StatusCode::OK.into_response()
+            any(move |method, uri, headers, body| {
+                receive_location(state, method, uri, headers, body)
             }),
         )
         // the status and articles are public, so they are not behind the secret
@@ -213,23 +200,6 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
-}
-
-#[derive(serde::Deserialize)]
-struct NewTraccar {
-    device_id: String,
-    location: NewLocation,
-}
-
-#[derive(serde::Deserialize)]
-struct NewLocation {
-    coords: NewCoords,
-}
-
-#[derive(serde::Deserialize)]
-struct NewCoords {
-    latitude: f64,
-    longitude: f64,
 }
 
 pub struct AppState {
@@ -307,23 +277,6 @@ async fn event_stream<T: Table<Schema = Schema>>(
                 // Ending the stream makes the client reconnect,
                 // it then gets a reset and all rows again.
                 Err(RecvError::Lagged(_)) | Err(RecvError::Closed) => break,
-            }
-        }
-    };
-    Sse::new(events.map(|data| Ok(Event::default().data(data)))).keep_alive(KeepAlive::default())
-}
-
-/// Send the locations from traccar as JSON event data.
-fn live_events(
-    mut live: broadcast::Receiver<Traccar>,
-) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
-    let events = stream! {
-        loop {
-            match live.recv().await {
-                Ok(traccar) => yield serde_json::to_string(&traccar).unwrap(),
-                Err(RecvError::Closed) => break,
-                // old locations are not important
-                Err(RecvError::Lagged(_)) => continue,
             }
         }
     };
