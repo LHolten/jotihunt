@@ -74,6 +74,8 @@ async fn main() -> anyhow::Result<()> {
         .nest(
             "/{key}",
             Router::new()
+                // lets the client check if its stored secret is still valid
+                .route("/check", get(|| async {}))
                 .route(
                     "/locations",
                     get(move || {

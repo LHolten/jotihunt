@@ -1,10 +1,11 @@
 use std::{collections::BTreeMap, rc::Rc, time::Duration};
 
 use comms::{live_updated, LocationEdit};
-use futures::SinkExt;
+use futures::{channel::mpsc, SinkExt, StreamExt};
 use gloo::{
-    dialogs::{alert, prompt},
-    net::http::Request,
+    dialogs::alert,
+    events::{EventListener, EventListenerOptions},
+    net::http::{Request, RequestBuilder, Response},
     storage::{LocalStorage, Storage},
     timers::future::sleep,
     utils::{document, window},
@@ -20,6 +21,9 @@ use sycamore::{
     futures::{spawn_local, spawn_local_scoped},
     prelude::*,
 };
+
+use wasm_bindgen::JsCast;
+use web_sys::HtmlInputElement;
 
 mod articles;
 mod comms;
@@ -273,44 +277,80 @@ fn location_editor(key: &'static str, fox_names: &[String]) {
     );
 }
 
-const PASSWORD_KEY: &str = "password";
+const SECRET_KEY: &str = "secret";
 
-/// Asks for the password until the server accepts it and returns the secret.
+/// Returns the secret that is needed for all location endpoints.
 ///
-/// The password is sent in an explicit `Authorization` header instead of relying
-/// on the browser login popup, because Safari never shows that popup for
-/// cross-origin requests.
+/// The secret is stored, so the password is only needed again after the server
+/// restarts with a new secret. The password is sent in an explicit `Authorization`
+/// header instead of relying on the browser login popup, because Safari never
+/// shows that popup for cross-origin requests.
 async fn retrieve_secret() -> String {
-    let address = format!("https://{HOSTNAME}/secret");
-    loop {
-        let password = match LocalStorage::get::<String>(PASSWORD_KEY) {
-            Ok(password) => password,
-            Err(_) => prompt("wachtwoord:", None).unwrap_or_default(),
-        };
-        let auth = window().btoa(&format!(":{password}")).unwrap();
-        let res = Request::get(&address)
-            .header("Authorization", &format!("Basic {auth}"))
-            .send()
-            .await;
-        match res {
-            Ok(res) if res.ok() => {
-                LocalStorage::set(PASSWORD_KEY, password).unwrap();
-                return res.text().await.unwrap();
-            }
-            Ok(res) if res.status() == 401 => {
-                LocalStorage::delete(PASSWORD_KEY);
-                alert("verkeerd wachtwoord");
-            }
-            Ok(res) => {
-                alert(&format!("inloggen mislukt: {}", res.status_text()));
-                sleep(Duration::from_secs(5)).await;
-            }
-            Err(err) => {
-                alert(&format!("inloggen mislukt: {err}"));
-                sleep(Duration::from_secs(5)).await;
-            }
+    if let Ok(secret) = LocalStorage::get::<String>(SECRET_KEY) {
+        let check = format!("https://{HOSTNAME}/{secret}/check");
+        if authorized(|| Request::get(&check)).await.is_some() {
+            return secret;
         }
     }
+
+    loop {
+        let auth = window().btoa(&format!(":{}", ask_password().await)).unwrap();
+        let login = || {
+            Request::get(&format!("https://{HOSTNAME}/secret"))
+                .header("Authorization", &format!("Basic {auth}"))
+        };
+        if let Some(res) = authorized(login).await {
+            let secret = res.text().await.unwrap();
+            LocalStorage::set(SECRET_KEY, &secret).unwrap();
+            return secret;
+        }
+        alert("verkeerd wachtwoord");
+    }
+}
+
+/// Sends the request until the server answers, `None` means it was unauthorized.
+async fn authorized(request: impl Fn() -> RequestBuilder) -> Option<Response> {
+    loop {
+        match request().send().await {
+            Ok(res) if res.ok() => return Some(res),
+            Ok(res) if res.status() == 401 => return None,
+            Ok(res) => alert(&format!("inloggen mislukt: {}", res.status_text())),
+            Err(err) => alert(&format!("inloggen mislukt: {err}")),
+        }
+        sleep(Duration::from_secs(5)).await;
+    }
+}
+
+/// Shows the empty login form until it is submitted and returns the password.
+async fn ask_password() -> String {
+    let form = document()
+        .get_element_by_id("login")
+        .expect("there is a login form");
+    let input: HtmlInputElement = document()
+        .get_element_by_id("password")
+        .expect("there is a password input")
+        .unchecked_into();
+
+    let (submitted, mut submits) = mpsc::unbounded();
+    let _listener = EventListener::new_with_options(
+        &form,
+        "submit",
+        EventListenerOptions::enable_prevent_default(),
+        move |event| {
+            // the password is sent by `retrieve_secret`, not by the form
+            event.prevent_default();
+            let _ = submitted.unbounded_send(());
+        },
+    );
+
+    form.remove_attribute("hidden").unwrap();
+    let _ = input.focus();
+    submits.next().await;
+    form.set_attribute("hidden", "").unwrap();
+
+    let password = input.value();
+    input.set_value("");
+    password
 }
 
 fn main() {

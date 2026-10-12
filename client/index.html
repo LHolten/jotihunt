@@ -22,6 +22,13 @@
 
 <body>
     <div id="panel_column">
+        <!-- a real form, so password managers can fill and save the password -->
+        <form id="login" hidden>
+            <input name="username" autocomplete="username" value="jotihunt" hidden />
+            <label for="password">Wachtwoord:</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required />
+            <button>Inloggen</button>
+        </form>
         <details id="coord_editor"></details>
         <details id="articles"></details>
         <details id="option_panel"></details>
