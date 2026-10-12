@@ -19,9 +19,9 @@ struct Group {
     area: Option<String>,
 }
 
-pub async fn get_geo() -> reqwest::Result<String> {
-    let res = reqwest::get("https://jotihunt.nl/api/2.0/subscriptions").await?;
-    let sub: Subscriptions = res.json().await?;
+pub async fn get_geo(state: &'static AppState) -> anyhow::Result<String> {
+    let res = state.source.fetch("subscriptions").await?;
+    let sub: Subscriptions = serde_json::from_str(&res)?;
 
     let mut features = vec![];
     for group in sub.data {
@@ -52,9 +52,9 @@ pub async fn get_geo() -> reqwest::Result<String> {
 pub async fn reload_geojson_loop(state: &'static AppState) {
     loop {
         // every hour
-        sleep(Duration::from_secs(60 * 60)).await;
+        sleep(state.source.interval(Duration::from_secs(60 * 60))).await;
         println!("reloading geojson");
-        match get_geo().await {
+        match get_geo(state).await {
             Ok(new) => state.geojson.store(Arc::new(new)),
             Err(err) => println!("error getting geojson: {err}"),
         }
