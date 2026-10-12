@@ -3,6 +3,7 @@ use std::convert::Infallible;
 use async_stream::stream;
 use axum::{
     body::Bytes,
+    extract::Query,
     http::{header::CONTENT_TYPE, HeaderMap, Method, StatusCode, Uri},
     response::sse::{Event, KeepAlive, Sse},
 };
@@ -20,7 +21,7 @@ pub async fn receive_location(
     headers: HeaderMap,
     body: Bytes,
 ) -> StatusCode {
-    let Some(traccar) = parse_traccar(uri.query().unwrap_or_default(), &body) else {
+    let Some(traccar) = parse_traccar(&uri, &body) else {
         // logged to find out what format the client uses
         eprintln!(
             "unknown traccar request: {method} {uri} {:?} {}",
@@ -33,10 +34,12 @@ pub async fn receive_location(
     StatusCode::OK
 }
 
-/// Reads a location in any format of the traccar clients, ignoring the content type.
-fn parse_traccar(query: &str, body: &[u8]) -> Option<Traccar> {
-    // the old client sends the location in the query, or as a form in the body
-    let form = |data: &[u8]| serde_urlencoded::from_bytes::<Traccar>(data).ok();
+/// Reads a location in either format of the traccar clients, ignoring the content type.
+fn parse_traccar(uri: &Uri, body: &[u8]) -> Option<Traccar> {
+    // the old client sends the location in the query
+    let query = Query::<Traccar>::try_from_uri(uri)
+        .ok()
+        .map(|query| query.0);
     // the new client sends json
     let json = || {
         let json: NewTraccar = serde_json::from_slice(body).ok()?;
@@ -46,7 +49,7 @@ fn parse_traccar(query: &str, body: &[u8]) -> Option<Traccar> {
             lon: json.location.coords.longitude.to_string(),
         })
     };
-    form(query.as_bytes()).or_else(json).or_else(|| form(body))
+    query.or_else(json)
 }
 
 #[derive(serde::Deserialize)]
@@ -87,13 +90,11 @@ pub fn live_events(
 fn traccar_formats() {
     let id = |t: Option<Traccar>| t.map(|t| (t.id, t.lat, t.lon));
     let expected = Some(("phone".to_owned(), "52.1".to_owned(), "5.8".to_owned()));
-    let form = b"id=phone&lat=52.1&lon=5.8&timestamp=1";
-    assert_eq!(
-        id(parse_traccar("id=phone&lat=52.1&lon=5.8", b"")),
-        expected
-    );
-    assert_eq!(id(parse_traccar("", form)), expected);
+    let uri = |uri: &str| uri.parse::<Uri>().unwrap();
+    let query = uri("/traccar?id=phone&lat=52.1&lon=5.8&timestamp=1");
+    assert_eq!(id(parse_traccar(&query, b"")), expected);
     let json = br#"{"device_id":"phone","location":{"coords":{"latitude":52.1,"longitude":5.8}}}"#;
-    assert_eq!(id(parse_traccar("", json)), expected);
-    assert!(parse_traccar("", b"").is_none());
+    assert_eq!(id(parse_traccar(&uri("/traccar"), json)), expected);
+    let form = b"id=phone&lat=52.1&lon=5.8";
+    assert!(parse_traccar(&uri("/traccar"), form).is_none());
 }

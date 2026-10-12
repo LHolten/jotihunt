@@ -37,7 +37,7 @@ pub fn option_panel(key: &'static str) {
             let traccar_url = format!("https://{HOSTNAME}/traccar");
             // opens the traccar client app with these settings filled in
             let traccar_config = format!(
-                "org.traccar.client://?url={}&accuracy=high&distance=15&heartbeat=600&stop_detection=true&buffer=true",
+                "org.traccar.client://?url={}&accuracy=high&distance=15&heartbeat=600&stop_detection=true&buffer=false",
                 String::from(encode_uri_component(&traccar_url))
             );
             // for scanning with a phone, the quiet zone keeps it readable on the green panel
