@@ -13,49 +13,17 @@ The interface is in Dutch.
 - **Live hunters.** Phones running a [Traccar client](https://www.traccar.org/client/) report their position and are shown as a person on the map. A marker disappears after five minutes without an update.
 - **Own location.** The browser can show where you are.
 
-## How it is built
+## Project layout
 
 The repository is a Cargo workspace with three crates:
 
 | Crate | What it is |
 | --- | --- |
-| [server/](server/) | [axum](https://github.com/tokio-rs/axum) server. Stores everything in SQLite through [rust-query](https://github.com/LHolten/rust-query) and polls the jotihunt.nl API. |
-| [client/](client/) | Single page app in Rust compiled to WebAssembly, using [sycamore](https://sycamore.dev) and built with [Trunk](https://trunkrs.dev). The map is [Leaflet](https://leafletjs.com), wrapped in [client/leaflet.js](client/leaflet.js). |
+| [server/](server/) | [axum](https://github.com/tokio-rs/axum) server with a SQLite database, which also polls the jotihunt.nl API. |
+| [client/](client/) | Single page app in Rust compiled to WebAssembly, using [sycamore](https://sycamore.dev) and [Leaflet](https://leafletjs.com). |
 | [shared/](shared/) | The types that go over the wire, used by both. |
 
 The client and the server are hosted separately: the client is a static site on GitHub Pages and talks to the server on its own domain.
-
-### Live data
-
-The server keeps three tables (locations, statuses and articles). Each table has a [server sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) endpoint that first sends `Reset`, then every row, and after that every change as it happens. The client keeps a sorted map per table up to date from that stream, and the browser reconnects by itself.
-
-Changes are broadcast inside the database transaction that makes them, and a new connection subscribes inside the transaction that reads its snapshot, so a client never misses a change or sees them out of order.
-
-Location edits are safe to do concurrently: an update or delete includes the value the client thinks is current, and the server refuses it with `409` if someone else changed it in the meantime.
-
-### Login
-
-There is a single password for the whole group. The login form posts it to the server, which redirects back to the client with a secret in the url fragment. The client stores the secret in `localStorage` and uses it as the first path segment of every protected endpoint. The secret is new every time the server starts, so everyone has to log in again after a restart.
-
-### Server endpoints
-
-| Endpoint | | |
-| --- | --- | --- |
-| `POST /login` | public | Form with `password` and `redirect`, redirects back with the secret |
-| `GET /status` | public | Event stream of the area statuses |
-| `GET /articles` | public | Event stream of the articles (title and type only) |
-| `GET /articles/{publish_at}/{id}` | public | HTML body of one article |
-| `GET /deelnemers.geojson` | public | The participating groups |
-| `GET /fox_list.json` | public | The names of the areas |
-| `ANY /traccar` | public | Position report from a Traccar client |
-| `GET /{secret}/check` | secret | Checks if a stored secret is still valid |
-| `GET /{secret}/locations` | secret | Event stream of the fox locations |
-| `POST`, `PUT`, `DELETE /{secret}/locations/{day}/{time}/{fox_name}` | secret | Create, modify or delete a fox location |
-| `GET /{secret}/live` | secret | Event stream of the Traccar positions |
-
-`/traccar` accepts either the query parameters `id`, `lat` and `lon`, or a JSON body with `device_id` and `location.coords.latitude` / `longitude`.
-
-The server fetches the area statuses every minute, the articles every five seconds and the participating groups every hour.
 
 ## Running it locally
 
