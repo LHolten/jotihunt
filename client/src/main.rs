@@ -23,7 +23,7 @@ use sycamore::{
 };
 
 use wasm_bindgen::JsCast;
-use web_sys::HtmlInputElement;
+use web_sys::{HtmlFormElement, HtmlInputElement, KeyboardEvent};
 
 mod articles;
 mod comms;
@@ -293,19 +293,9 @@ async fn retrieve_secret() -> String {
         }
     }
 
-    loop {
-        let auth = window().btoa(&format!(":{}", ask_password().await)).unwrap();
-        let login = || {
-            Request::get(&format!("https://{HOSTNAME}/secret"))
-                .header("Authorization", &format!("Basic {auth}"))
-        };
-        if let Some(res) = authorized(login).await {
-            let secret = res.text().await.unwrap();
-            LocalStorage::set(SECRET_KEY, &secret).unwrap();
-            return secret;
-        }
-        alert("verkeerd wachtwoord");
-    }
+    let secret = log_in().await;
+    LocalStorage::set(SECRET_KEY, &secret).unwrap();
+    secret
 }
 
 /// Sends the request until the server answers, `None` means it was unauthorized.
@@ -321,36 +311,54 @@ async fn authorized(request: impl Fn() -> RequestBuilder) -> Option<Response> {
     }
 }
 
-/// Shows the empty login form until it is submitted and returns the password.
-async fn ask_password() -> String {
-    let form = document()
-        .get_element_by_id("login")
-        .expect("there is a login form");
-    let input: HtmlInputElement = document()
-        .get_element_by_id("password")
-        .expect("there is a password input")
-        .unchecked_into();
+/// Shows the login form until the server accepts the password and returns the secret.
+///
+/// Password managers save the password when the form is submitted (even when the
+/// submit is cancelled), so the form is only submitted once the password is correct.
+/// Pressing enter just tries the password.
+async fn log_in() -> String {
+    let element = |id| document().get_element_by_id(id).expect("the login form exists");
+    let form: HtmlFormElement = element("login").unchecked_into();
+    let input: HtmlInputElement = element("password").unchecked_into();
 
-    let (submitted, mut submits) = mpsc::unbounded();
-    let _listener = EventListener::new_with_options(
+    let (attempted, mut attempts) = mpsc::unbounded();
+    let _on_enter = EventListener::new_with_options(
+        &input,
+        "keydown",
+        EventListenerOptions::enable_prevent_default(),
+        move |event| {
+            if event.unchecked_ref::<KeyboardEvent>().key() == "Enter" {
+                // stops the browser from submitting the form
+                event.prevent_default();
+                let _ = attempted.unbounded_send(());
+            }
+        },
+    );
+    // the password is sent below, the form is only submitted for password managers
+    let _on_submit = EventListener::new_with_options(
         &form,
         "submit",
         EventListenerOptions::enable_prevent_default(),
-        move |event| {
-            // the password is sent by `retrieve_secret`, not by the form
-            event.prevent_default();
-            let _ = submitted.unbounded_send(());
-        },
+        |event| event.prevent_default(),
     );
 
     form.remove_attribute("hidden").unwrap();
     let _ = input.focus();
-    submits.next().await;
-    form.set_attribute("hidden", "").unwrap();
-
-    let password = input.value();
-    input.set_value("");
-    password
+    loop {
+        attempts.next().await;
+        let auth = window().btoa(&format!(":{}", input.value())).unwrap();
+        let login = || {
+            Request::get(&format!("https://{HOSTNAME}/secret"))
+                .header("Authorization", &format!("Basic {auth}"))
+        };
+        if let Some(res) = authorized(login).await {
+            form.request_submit().unwrap();
+            form.set_attribute("hidden", "").unwrap();
+            return res.text().await.unwrap();
+        }
+        alert("verkeerd wachtwoord");
+        input.select();
+    }
 }
 
 fn main() {
