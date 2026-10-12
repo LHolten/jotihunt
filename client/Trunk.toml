@@ -1,0 +1,3 @@
+[build]
+# relative urls, so the site works when hosted on any domain/path
+public_url = "./"

@@ -76,7 +76,7 @@ export function load_participants(url) {
 }
 
 let orga = add_marker(5.8725166117126575, 51.95402844147237, "orga", false);
-set_custom(orga, "/stikkerbuilding.png");
+set_custom(orga, "stikkerbuilding.png");
 
 proj4.defs(
     "EPSG:7415",
@@ -112,11 +112,11 @@ export function set_marker_color(marker, color) {
 }
 
 export function set_human(marker) {
-    set_custom(marker, "/human.png");
+    set_custom(marker, "human.png");
 }
 
 export function set_fox(marker, old) {
-    set_custom(marker, "/fox.png");
+    set_custom(marker, "fox.png");
     if (old) {
         marker.setOpacity(0.5);
     } else {
