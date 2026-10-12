@@ -52,10 +52,32 @@ function make_map() {
         })
         .addTo(map);
 
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    let options = {
         maxZoom: 19,
         attribution: "© OpenStreetMap",
-    }).addTo(map);
+    };
+    let osm = L.tileLayer(
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        options,
+    );
+
+    if (L.Browser.retina) {
+        // osm has no high resolution tiles, these are the same map at 512px.
+        // The server is only tolerated for outside use and can stop without
+        // notice, so the first tile that fails switches back to osm.
+        // That is blurry, osm tiles can only be sharp by drawing them at half size.
+        let hd = L.tileLayer("https://{s}.osm.rrze.fau.de/osmhd/{z}/{x}/{y}.png", {
+            ...options,
+            subdomains: "ab",
+        });
+        hd.once("tileerror", () => {
+            map.removeLayer(hd);
+            osm.addTo(map);
+        });
+        hd.addTo(map);
+    } else {
+        osm.addTo(map);
+    }
 
     return map;
 }
