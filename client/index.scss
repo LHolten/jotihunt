@@ -7,6 +7,9 @@ body {
     display: flex;
     max-width: 20rem;
     padding: 4px;
+    // stay clear of the notch when installed as an app, the insets are 0 elsewhere
+    padding-top: calc(4px + env(safe-area-inset-top));
+    padding-left: calc(4px + env(safe-area-inset-left));
     position: absolute;
     // this column is only for placement, it should not be clickable
     pointer-events: none;
@@ -69,6 +72,22 @@ input[updated=false] {
     height: 100%;
     display: block;
     filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.5));
+}
+
+.leaflet-top {
+    top: env(safe-area-inset-top);
+}
+
+.leaflet-right {
+    right: env(safe-area-inset-right);
+}
+
+.leaflet-bottom {
+    bottom: env(safe-area-inset-bottom);
+}
+
+.leaflet-left {
+    left: env(safe-area-inset-left);
 }
 
 #page {

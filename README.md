@@ -12,6 +12,7 @@ The interface is in Dutch.
 - **Participating groups.** All groups are drawn on the map with a 500 m circle, coloured by area.
 - **Live hunters.** Phones running a [Traccar client](https://www.traccar.org/client/) report their position and are shown as a person on the map. A marker disappears after five minutes without an update.
 - **Own location.** The browser can show where you are.
+- **Installable.** On a phone the map can be added to the home screen, where it opens full screen like an app.
 
 ## Project layout
 
