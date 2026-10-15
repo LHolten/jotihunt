@@ -19,25 +19,27 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3
-      
+      - uses: actions/checkout@v7
+
+      # stable is preinstalled on the runner, so this only adds the wasm target
       - name: Install rust toolchain
-        uses: actions-rs/toolchain@v1.0.6
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: nightly
-          target: wasm32-unknown-unknown
-          profile: minimal
-          default: true
-      
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
       - name: Install trunk
-        uses: jetli/trunk-action@v0.5.0
+        uses: taiki-e/install-action@v2
+        with:
+          tool: trunk
 
       - name: Build site using trunk
         run: trunk build --release
         working-directory: client
           
       - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v3.0.1
+        uses: actions/upload-pages-artifact@v5
         with:
           path: client/dist/
   
@@ -61,4 +63,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4.0.5
+        uses: actions/deploy-pages@v5
