@@ -168,9 +168,14 @@ async fn main() -> anyhow::Result<()> {
             "/deelnemers.geojson",
             get(move || async move { state.geojson.load().as_ref().clone() }),
         )
+        // only the names, for clients from before `/areas.json`
         .route(
             "/fox_list.json",
             get(move || async move { state.fox_list.load().as_ref().clone() }),
+        )
+        .route(
+            "/areas.json",
+            get(move || async move { state.areas.load().as_ref().clone() }),
         )
         // the client is served from a different origin
         .layer(CorsLayer::very_permissive());
@@ -220,10 +225,12 @@ pub struct AppState {
     pub live_articles: Live,
     pub geojson: ArcSwap<String>,
     pub fox_list: ArcSwap<String>,
+    /// JSON of a list of [jotihunt_shared::domain::Area].
+    pub areas: ArcSwap<String>,
 }
 
 impl AppState {
-    /// `geojson` and `fox_list` start out empty.
+    /// `geojson`, `fox_list` and `areas` start out empty.
     pub fn new(config: Config) -> Self {
         let db = Database::<Schema>::new(config);
         Self {
@@ -235,6 +242,7 @@ impl AppState {
             live_articles: broadcast::channel(4096).0,
             geojson: ArcSwap::default(),
             fox_list: ArcSwap::default(),
+            areas: ArcSwap::default(),
         }
     }
 }

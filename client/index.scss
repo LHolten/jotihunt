@@ -59,18 +59,28 @@ input[updated=false] {
     line-height: 1.5;
 }
 
-.legend img {
+.legend .pin {
     // the same size as the participant markers
+    display: inline-block;
     width: 12.5px;
     height: 20.5px;
     margin-right: 4px;
     vertical-align: middle;
 }
 
+// an area we are not allowed to hunt
+.legend .excluded {
+    opacity: 0.5;
+}
+
+.pin svg,
 .fox-pin svg {
     width: 100%;
     height: 100%;
     display: block;
+}
+
+.fox-pin svg {
     filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.5));
 }
 

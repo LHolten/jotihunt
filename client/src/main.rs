@@ -9,7 +9,7 @@ use gloo::{
     utils::{document, window},
 };
 use jotihunt_shared::{
-    domain::{Fox, FoxKey},
+    domain::{Area, Fox, FoxKey},
     ModifyLocation,
 };
 use js_sys::Date;
@@ -102,7 +102,7 @@ fn location_editor(key: &'static str, fox_names: Vec<String>) {
                 });
             }
 
-            let new_fox = create_signal(fox_names[0].clone());
+            let new_fox = create_signal(fox_names.first().cloned().unwrap_or_default());
 
             let slice_names = create_memo(move || {
                 let day = current_day.get_clone();
@@ -118,7 +118,7 @@ fn location_editor(key: &'static str, fox_names: Vec<String>) {
                 names
             });
 
-            let area = create_signal(fox_names[0].clone());
+            let area = create_signal(fox_names.first().cloned().unwrap_or_default());
 
             let fox_options = || {
                 let options = fox_names.iter().map(|name| {
@@ -355,20 +355,28 @@ fn show_login(redirect: &str) {
 fn main() {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 
-    leaflet::load_participants(&format!("https://{HOSTNAME}/deelnemers.geojson"));
-
     spawn_local(async {
+        let areas: Vec<Area> = Request::get(&format!("https://{HOSTNAME}/areas.json"))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        let name = |area: &Area| area.name.clone();
+        leaflet::set_areas(
+            areas.iter().map(name).collect(),
+            areas
+                .iter()
+                .filter(|area| !area.huntable)
+                .map(name)
+                .collect(),
+        );
+        leaflet::load_participants(&format!("https://{HOSTNAME}/deelnemers.geojson"));
+
         let key = Box::leak(retrieve_secret().await.into_boxed_str());
 
-        let fox_names: Vec<String> =
-            gloo::net::http::Request::get(&format!("https://{HOSTNAME}/fox_list.json"))
-                .send()
-                .await
-                .unwrap()
-                .json()
-                .await
-                .unwrap();
-
+        let fox_names = areas.into_iter().map(|area| area.name).collect();
         location_editor(key, fox_names);
         option_panel(key);
         articles::articles();

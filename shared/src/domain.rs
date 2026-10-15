@@ -31,3 +31,11 @@ pub struct SavedArticle {
     pub title: String,
     pub r#type: String,
 }
+
+/// An element of `GET /areas.json`, in the order the client should use for the colors.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct Area {
+    pub name: String,
+    /// `false` for the areas we are not allowed to hunt, listed in the `excluded_areas` file.
+    pub huntable: bool,
+}

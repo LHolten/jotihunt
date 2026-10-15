@@ -61,6 +61,19 @@ Run the tests with `cargo test`.
 
 **Server.** A release build on Linux or macOS listens on the unix socket `/run/jotihunt/socket` and expects a reverse proxy in front of it that takes care of https. It reads `password` and `joti.sqlite` from its working directory.
 
+## Areas
+
+The areas (deelgebieden) are taken from the jotihunt.nl API, so nothing needs to change when their number does. Every area gets a color by its place in the alphabetically sorted list.
+
+Once it is known which areas we are not allowed to hunt, put their names in a file `excluded_areas` next to `password`, one per line (case does not matter):
+
+```text
+Bravo
+Oscar
+```
+
+The server reads it again every minute and logs names that do not match an area. The groups in those areas are drawn grey after the client reloads the page.
+
 [flake.nix](flake.nix) has a package for the server and a NixOS module that sets up the systemd service, a `jotihunt` user, the state directory `/var/lib/jotihunt` and a Caddy virtual host for `jotihunt.lucasholten.com`:
 
 ```nix
