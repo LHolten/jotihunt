@@ -256,8 +256,90 @@ export function set_marker_color(marker, color) {
     marker.setIcon(icon);
 }
 
-export function set_human(marker) {
-    set_custom(marker, "human.png");
+// how long the trail behind a live location takes to fade out
+const trail_ms = 60 * 1000;
+const live_color = "#1a73e8";
+
+// an arrow pointing in the direction of travel (degrees clockwise from north),
+// or a dot while the direction is not known yet. Styled by `.live-arrow`
+function live_icon(bearing) {
+    const shape =
+        bearing === null
+            ? `<circle cx="12" cy="12" r="6"/>`
+            : `<path d="M12 2L19.5 20L12 15.5L4.5 20Z"/>`;
+    const rotate = bearing === null ? "" : `transform: rotate(${bearing}deg);`;
+    return L.divIcon({
+        className: "live-arrow",
+        html: `<svg viewBox="0 0 24 24" style="color: ${live_color}; ${rotate}">${shape}</svg>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+        tooltipAnchor: [12, 0],
+        popupAnchor: [0, -12],
+    });
+}
+
+// the direction from `from` to `to` in degrees clockwise from north, flat is fine for short distances
+function bearing(from, to) {
+    const dx = (to.lng - from.lng) * Math.cos((from.lat * Math.PI) / 180);
+    const dy = to.lat - from.lat;
+    return (Math.atan2(dx, dy) * 180) / Math.PI;
+}
+
+// a traccar location, with an arrow in the direction it moves and a trail that fades out
+export function add_live_marker(lng, lat, name) {
+    const latlng = L.latLng(lat, lng);
+    const live = {
+        marker: L.marker(latlng, { icon: live_icon(null) })
+            .bindTooltip(text_tooltip(name))
+            .bindPopup(make_popup(lat, lng))
+            .addTo(map),
+        // where the trail continues from, only moves on when the location really changed
+        anchor: { latlng, time: Date.now() },
+        // the segments of the trail, oldest first
+        trail: [],
+    };
+    live.timer = setInterval(() => fade_trail(live), 1000);
+    return live;
+}
+
+export function move_live_marker(live, lng, lat) {
+    const latlng = L.latLng(lat, lng);
+    const now = Date.now();
+    const anchor = live.anchor;
+    // a phone that stands still keeps sending its location, and gps jitters
+    if (map.distance(anchor.latlng, latlng) >= 5) {
+        live.marker.setIcon(live_icon(bearing(anchor.latlng, latlng)));
+        // no line through the gap when the phone was silent for a while
+        if (now - anchor.time < trail_ms) {
+            const line = L.polyline([anchor.latlng, latlng], {
+                color: live_color,
+                weight: 4,
+                interactive: false,
+            }).addTo(map);
+            live.trail.push({ line, time: now });
+        }
+        live.anchor = { latlng, time: now };
+    }
+    live.marker.setLatLng(latlng).setPopupContent(make_popup(lat, lng));
+    fade_trail(live);
+}
+
+function fade_trail(live) {
+    const now = Date.now();
+    while (live.trail.length > 0 && now - live.trail[0].time >= trail_ms) {
+        map.removeLayer(live.trail.shift().line);
+    }
+    for (const { line, time } of live.trail) {
+        line.setStyle({ opacity: 0.8 * (1 - (now - time) / trail_ms) });
+    }
+}
+
+export function remove_live_marker(live) {
+    clearInterval(live.timer);
+    map.removeLayer(live.marker);
+    for (const { line } of live.trail) {
+        map.removeLayer(line);
+    }
 }
 
 // `fox.svg` in the color of the area, its tip is at (16, 35), styled by `.fox-pin`

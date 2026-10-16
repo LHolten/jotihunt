@@ -1,4 +1,7 @@
-use std::{collections::HashMap, future::ready};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    future::ready,
+};
 
 use futures::{StreamExt, TryStreamExt};
 use gloo::{
@@ -7,7 +10,7 @@ use gloo::{
     timers::future::IntervalStream,
     utils::document,
 };
-use jotihunt_shared::{domain::Fox, Traccar};
+use jotihunt_shared::Traccar;
 use js_sys::Date;
 use mk_geolocation::{future::PositionStream, PositionOptions};
 use qrcode::{render::svg, QrCode};
@@ -15,7 +18,7 @@ use sycamore::{futures::spawn_local_scoped, prelude::*};
 
 use crate::{
     comms::event_messages,
-    leaflet::{set_group_names, Marker},
+    leaflet::{set_group_names, LiveMarker, Marker},
     HOSTNAME,
 };
 
@@ -159,7 +162,7 @@ async fn my_loc() {
 
 async fn read_live(address: String) {
     // markers are removed from the map when they are dropped
-    let mut markers = HashMap::new();
+    let mut markers: HashMap<String, (LiveMarker, f64)> = HashMap::new();
     let mut messages = Box::pin(event_messages(address)).fuse();
     let mut prune = IntervalStream::new(60 * 1000).fuse();
     loop {
@@ -167,13 +170,19 @@ async fn read_live(address: String) {
             json = messages.next() => {
                 let Some(json) = json else { break };
                 let traccar: Traccar = serde_json::from_str(&json).unwrap();
-                let live_loc = Fox {
-                    latitude: traccar.lat,
-                    longitude: traccar.lon,
+                let (Ok(lat), Ok(lng)) = (traccar.lat.parse(), traccar.lon.parse()) else {
+                    continue;
                 };
-                if let Some(marker) = make_marker(&live_loc, traccar.id.clone()) {
-                    marker.set_human();
-                    markers.insert(traccar.id, (marker, Date::now()));
+                match markers.entry(traccar.id) {
+                    Entry::Occupied(mut entry) => {
+                        let (marker, updated) = entry.get_mut();
+                        marker.move_to(lng, lat);
+                        *updated = Date::now();
+                    }
+                    Entry::Vacant(entry) => {
+                        let marker = LiveMarker::new(lng, lat, entry.key().clone());
+                        entry.insert((marker, Date::now()));
+                    }
                 }
             }
             _ = prune.next() => {
@@ -182,13 +191,4 @@ async fn read_live(address: String) {
             }
         }
     }
-}
-
-pub fn make_marker(fox: &Fox, name: String) -> Option<Marker> {
-    Some(Marker::new(
-        fox.longitude.parse().ok()?,
-        fox.latitude.parse().ok()?,
-        name,
-        false,
-    ))
 }
