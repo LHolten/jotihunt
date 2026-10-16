@@ -998,7 +998,6 @@ dependencies = [
  "jotihunt-shared",
  "js-sys",
  "merging-iterator",
- "mk-geolocation",
  "qrcode",
  "serde",
  "serde_json",
@@ -1102,18 +1101,6 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "mk-geolocation"
-version = "0.1.0"
-source = "git+https://gitlab.com/mkroehnert/mk-geolocation#bffa2ee1d3db2e7bb5ce3a077bf765eee21d4dca"
-dependencies = [
- "futures-channel",
- "futures-core",
- "js-sys",
- "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]
