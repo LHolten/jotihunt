@@ -79,9 +79,9 @@ fn area_list(names: BTreeSet<String>, excluded: &BTreeSet<String>) -> Vec<Area> 
 }
 
 /// Update the status table and the list of areas.
-pub async fn retrieve_status(state: &'static AppState) -> Result<(), reqwest::Error> {
-    let res = reqwest::get("https://jotihunt.nl/api/2.0/areas").await?;
-    let areas: Areas = res.json().await?;
+pub async fn retrieve_status(state: &'static AppState) -> anyhow::Result<()> {
+    let res = state.fetch("areas").await?;
+    let areas: Areas = serde_json::from_str(&res)?;
     let mut names = BTreeSet::new();
     for area in areas.data {
         names.insert(area.name.clone());

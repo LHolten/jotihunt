@@ -52,7 +52,14 @@ pub fn option_panel(key: &'static str) {
 
             view! {
                 summary {"Opties"}
-                div {"Scan de code met je traccar client en pas de device identifier aan"}
+                ol {
+                    li {
+                        "Installeer de "
+                        a(href="https://www.traccar.org/client/", target="_blank") {"Traccar Client-app"}
+                    }
+                    li {"Open de app, ga naar Settings en scan de QR-code"}
+                    li {"Stel bij \"Device identifier\" je naam in"}
+                }
                 pre {(traccar_url)}
                 div(dangerously_set_inner_html=traccar_qr)
                 div(class="field"){
