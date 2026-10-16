@@ -53,9 +53,9 @@ function area_color(area) {
     return `hsl(${(i * 137.5) % 360}, 60%, 45%)`;
 }
 
-// a map pin in `color`, the size of the leaflet marker, its tip is at (12.5, 41)
+// `pin.svg` in `color`, the size of the leaflet marker, its tip is at (12.5, 41)
 function pin_svg(color) {
-    return `<svg viewBox="0 0 25 41"><path fill="${color}" stroke="rgba(0, 0, 0, 0.4)" d="M12.5 0.5C5.9 0.5 0.5 5.9 0.5 12.5C0.5 21.5 12.5 40.5 12.5 40.5S24.5 21.5 24.5 12.5C24.5 5.9 19.1 0.5 12.5 0.5Z"/><circle cx="12.5" cy="12.5" r="4.5" fill="white"/></svg>`;
+    return `<svg viewBox="0 0 25 41" style="color: ${color}"><use href="pin.svg#pin"/></svg>`;
 }
 
 function make_map() {

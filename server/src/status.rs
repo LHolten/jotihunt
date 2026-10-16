@@ -1,4 +1,4 @@
-use std::{fs::read_to_string, sync::Arc, time::Duration};
+use std::{collections::BTreeSet, fs::read_to_string, sync::Arc, time::Duration};
 
 use jotihunt_shared::domain::{Area, StatusKey};
 use serde::Deserialize;
@@ -47,52 +47,47 @@ async fn update_single_status(state: &'static AppState, area: ApiArea) {
         .await
 }
 
-/// One area name per line, case does not matter. It is read again on every poll,
+/// One area name per line. It is read again on every poll,
 /// so it can be changed during the hunt without a restart.
 const EXCLUDED_AREAS_FILE: &str = "excluded_areas";
 
-/// The areas we are not allowed to hunt, in lowercase. A missing file means none.
-fn read_excluded_areas() -> Vec<String> {
-    read_to_string(EXCLUDED_AREAS_FILE)
-        .unwrap_or_default()
-        .lines()
-        .map(|line| line.trim().to_lowercase())
+/// The areas we are not allowed to hunt. A missing file means none.
+fn read_excluded_areas() -> BTreeSet<String> {
+    let file = read_to_string(EXCLUDED_AREAS_FILE).unwrap_or_else(|err| {
+        println!("{EXCLUDED_AREAS_FILE}: {err}, all areas are huntable");
+        String::new()
+    });
+    file.lines()
+        .map(str::trim)
         .filter(|line| !line.is_empty())
+        .map(str::to_owned)
         .collect()
 }
 
 /// Sorted by name, so every client gives each area the same color.
-fn area_list(mut names: Vec<String>, excluded: &[String]) -> Vec<Area> {
-    names.sort();
-    names.dedup();
-    for name in excluded {
-        if !names.iter().any(|n| n.to_lowercase() == *name) {
-            println!("{EXCLUDED_AREAS_FILE}: there is no area called {name:?}");
-        }
+fn area_list(names: BTreeSet<String>, excluded: &BTreeSet<String>) -> Vec<Area> {
+    for name in excluded.difference(&names) {
+        println!("{EXCLUDED_AREAS_FILE}: there is no area called {name:?}");
     }
     names
         .into_iter()
         .map(|name| Area {
-            huntable: !excluded.contains(&name.to_lowercase()),
+            huntable: !excluded.contains(&name),
             name,
         })
         .collect()
 }
 
-/// Update the status table and the lists of areas.
+/// Update the status table and the list of areas.
 pub async fn retrieve_status(state: &'static AppState) -> Result<(), reqwest::Error> {
     let res = reqwest::get("https://jotihunt.nl/api/2.0/areas").await?;
     let areas: Areas = res.json().await?;
-    let mut names = vec![];
+    let mut names = BTreeSet::new();
     for area in areas.data {
-        names.push(area.name.clone());
+        names.insert(area.name.clone());
         update_single_status(state, area).await;
     }
     let areas = area_list(names, &read_excluded_areas());
-    let names: Vec<_> = areas.iter().map(|area| &area.name).collect();
-    state
-        .fox_list
-        .store(Arc::new(serde_json::to_string(&names).unwrap()));
     state
         .areas
         .store(Arc::new(serde_json::to_string(&areas).unwrap()));
@@ -117,8 +112,8 @@ mod tests {
 
     #[test]
     fn excluded_areas() {
-        let names = ["Oscar", "Bravo", "Alpha"].map(str::to_owned).to_vec();
-        let areas = area_list(names, &["bravo".to_owned(), "zulu".to_owned()]);
+        let set = |names: &[&str]| names.iter().copied().map(str::to_owned).collect();
+        let areas = area_list(set(&["Oscar", "Bravo", "Alpha"]), &set(&["Bravo", "Zulu"]));
         let area = |name: &str, huntable| Area {
             name: name.to_owned(),
             huntable,
