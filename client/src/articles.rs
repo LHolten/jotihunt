@@ -1,4 +1,4 @@
-use std::cell::Cell;
+use std::{cell::Cell, collections::BTreeMap};
 
 use gloo::{
     dialogs::alert,
@@ -12,7 +12,7 @@ use sycamore::{futures::spawn_local_scoped, prelude::*};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::Element;
 
-use crate::{comms::live_table, HOSTNAME};
+use crate::{comms::live_table, leaflet, HOSTNAME};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 enum Update {
@@ -93,6 +93,23 @@ pub fn articles() {
             let articles =
                 live_table::<ArticleKey, SavedArticle>(format!("https://{HOSTNAME}/articles"));
             let status = live_table::<StatusKey, String>(format!("https://{HOSTNAME}/status"));
+
+            // the legend shows the current status of each area, since it last changed
+            create_effect(move || {
+                status.with(|status| {
+                    let mut current = BTreeMap::<&str, (&str, &str)>::new();
+                    for (key, value) in status {
+                        // the status is polled, so it can repeat without changing
+                        if current.get(&*key.fox_name).map(|(old, _)| *old) != Some(value.as_str())
+                        {
+                            current.insert(&key.fox_name, (value, &key.date_time));
+                        }
+                    }
+                    for (area, (value, since)) in current {
+                        leaflet::set_area_status(area, value, since);
+                    }
+                })
+            });
 
             let status_check = create_signal(false);
             let everything = create_signal(false);

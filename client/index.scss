@@ -127,6 +127,24 @@ input[updated=false] {
     vertical-align: middle;
 }
 
+// the current status of the area, a dot in the color `--status` and how long it has had it
+.legend .status {
+    margin-left: 6px;
+    font-size: 11px;
+}
+
+.legend .status::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 3px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.4);
+    background-color: var(--status);
+    vertical-align: middle;
+}
+
 // an area we are not allowed to hunt
 .legend .excluded {
     opacity: 0.5;

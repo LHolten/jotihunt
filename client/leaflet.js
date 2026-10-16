@@ -217,7 +217,52 @@ function make_popup(lat, lng) {
     return div;
 }
 
-// shows the color of each area, `unknown` adds a row for groups without a known area
+// the current status of each area and since when, set by `set_area_status`
+const area_status = new Map();
+// the status element in the legend row of each area, filled by `show_area_status`
+const status_elements = new Map();
+const statuses = {
+    green: { name: "groen", color: "#2aad27" },
+    orange: { name: "oranje", color: "#f39c12" },
+    red: { name: "rood", color: "#e02020" },
+};
+
+export function set_area_status(area, status, since) {
+    area_status.set(area, { status, since: Date.parse(since) });
+    show_area_status();
+}
+
+// "32m", "1u05m" or "2d"
+function format_duration(ms) {
+    const mins = Math.max(0, Math.floor(ms / 60000));
+    if (mins < 60) {
+        return `${mins}m`;
+    }
+    if (mins < 24 * 60) {
+        return `${Math.floor(mins / 60)}u${String(mins % 60).padStart(2, "0")}m`;
+    }
+    return `${Math.floor(mins / (24 * 60))}d`;
+}
+
+// a dot in the color of the status, and how long it has had it unless it is green
+function show_area_status() {
+    const now = Date.now();
+    for (const [area, { status, since }] of area_status) {
+        const element = status_elements.get(area);
+        if (!element) {
+            continue;
+        }
+        const known = statuses[status];
+        element.hidden = false;
+        element.style.setProperty("--status", known?.color ?? no_color);
+        element.title = known?.name ?? status;
+        element.textContent = status === "green" ? "" : format_duration(now - since);
+    }
+}
+// the durations count up
+setInterval(show_area_status, 30 * 1000);
+
+// shows the color and current status of each area, `unknown` adds a row for groups without a known area
 function add_legend(unknown) {
     const legend = L.control({ position: "bottomright" });
     legend.onAdd = () => {
@@ -226,12 +271,18 @@ function add_legend(unknown) {
             const row = L.DomUtil.create("div", excluded ? "excluded" : "", div);
             L.DomUtil.create("span", "pin", row).innerHTML = pin_svg(color);
             row.append(label);
+            return row;
         };
         for (const area of area_names) {
             // the area keeps its color for the foxes, only its groups are grey
             const excluded = excluded_areas.has(area);
-            add_row(area_color(area), area, excluded);
+            const row = add_row(area_color(area), area, excluded);
+            // hidden until the status is known
+            const status = L.DomUtil.create("span", "status", row);
+            status.hidden = true;
+            status_elements.set(area, status);
         }
+        show_area_status();
         if (unknown) {
             add_row(no_color, "onbekend", false);
         }
