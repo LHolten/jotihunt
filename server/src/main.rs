@@ -3,6 +3,7 @@ mod db;
 mod geojson;
 mod location;
 mod login;
+mod record;
 mod status;
 mod traccar;
 
@@ -30,6 +31,7 @@ use axum::{
     routing::{any, get, post},
     Router,
 };
+use clap::Parser;
 use futures_util::{Stream, StreamExt};
 use geojson::{get_geo, reload_geojson_loop};
 use jotihunt_shared::{
@@ -38,6 +40,7 @@ use jotihunt_shared::{
 };
 use location::{create_location, delete_location, modify_location};
 use login::login;
+use record::Recorder;
 use rust_query::{
     migration::Config, private::IntoJoinable, Database, DatabaseAsync, Expr, FromExpr, Select,
     Table, TableRow,
@@ -51,8 +54,17 @@ use tower_http::cors::CorsLayer;
 use traccar::{live_events, receive_location};
 use uuid::Uuid;
 
+#[derive(Parser)]
+struct Args {
+    /// Save the responses of the jotihunt.nl API in this directory
+    #[arg(long)]
+    record: Option<std::path::PathBuf>,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let args = Args::parse();
+
     if let Ok(mut file) = File::create_new("password") {
         write!(&mut file, "test").unwrap();
     }
@@ -60,8 +72,11 @@ async fn main() -> anyhow::Result<()> {
 
     println!("password is: {}", password);
 
-    let state = leak(AppState::new(Config::open("joti.sqlite")));
-    state.geojson.store(Arc::new(get_geo().await.unwrap()));
+    let state = leak(AppState {
+        record: args.record.map(Recorder::new),
+        ..AppState::new(Config::open("joti.sqlite"))
+    });
+    state.geojson.store(Arc::new(get_geo(state).await.unwrap()));
     retrieve_status(state).await.unwrap();
 
     tokio::spawn(reload_geojson_loop(state));
@@ -213,6 +228,8 @@ async fn main() -> anyhow::Result<()> {
 pub struct AppState {
     /// Needed in the url of all endpoints that access the database.
     pub secret: Uuid,
+    /// Saves the responses of the jotihunt.nl API if set.
+    pub record: Option<Recorder>,
     pub db: DatabaseAsync<Schema>,
     pub live_traccar: broadcast::Sender<Traccar>,
     pub live_locations: Live,
@@ -223,11 +240,12 @@ pub struct AppState {
 }
 
 impl AppState {
-    /// `geojson` and `fox_list` start out empty.
+    /// Nothing is recorded, `geojson` and `fox_list` start out empty.
     pub fn new(config: Config) -> Self {
         let db = Database::<Schema>::new(config);
         Self {
             secret: Uuid::new_v4(),
+            record: None,
             db: DatabaseAsync::new(Arc::new(db)),
             live_traccar: broadcast::channel(16).0,
             live_locations: broadcast::channel(4096).0,

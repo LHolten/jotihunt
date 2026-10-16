@@ -81,9 +81,9 @@ pub async fn article_content(state: &'static AppState, key: ArticleKey) -> Optio
         .await
 }
 
-async fn retrieve_articles_inner(state: &'static AppState) -> Result<(), reqwest::Error> {
-    let res = reqwest::get("https://jotihunt.nl/api/2.0/articles").await?;
-    let areas: Articles = res.json().await?;
+async fn retrieve_articles_inner(state: &'static AppState) -> anyhow::Result<()> {
+    let res = state.fetch("articles").await?;
+    let areas: Articles = serde_json::from_str(&res)?;
     for area in areas.data {
         update_single_article(state, area).await;
     }
