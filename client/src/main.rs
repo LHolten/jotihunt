@@ -14,7 +14,7 @@ use jotihunt_shared::{
 };
 use js_sys::Date;
 use leaflet::Line;
-use options::option_panel;
+use options::{option_panel, traccar_panel};
 use sycamore::{
     futures::{spawn_local, spawn_local_scoped},
     prelude::*,
@@ -378,7 +378,8 @@ fn main() {
 
         let fox_names = areas.into_iter().map(|area| area.name).collect();
         location_editor(key, fox_names);
-        option_panel(key);
+        traccar_panel(key);
+        option_panel();
         articles::articles();
     });
 }
