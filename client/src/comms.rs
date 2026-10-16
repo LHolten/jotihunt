@@ -147,6 +147,11 @@ pub fn make_marker(fox: &Fox, name: &str) -> Option<Marker> {
     Some(Marker::new(x, y, name.to_owned(), convert))
 }
 
+/// Whether both coordinates are valid, so a marker can be made.
+pub fn is_valid(fox: &Fox) -> bool {
+    parse_coord(&fox.latitude, &fox.longitude).is_some()
+}
+
 // parses both sides of a coordinate, returns the marker position and if it is RD
 // RD needs both sides, otherwise each side can be decimal or degrees minutes seconds
 fn parse_coord(lat: &str, long: &str) -> Option<(f64, f64, bool)> {

@@ -40,6 +40,48 @@ details details {
     flex-wrap: wrap;
 }
 
+// the time slot above the coordinates
+.slot {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+
+    input {
+        flex: 1;
+        min-width: 0;
+    }
+}
+
+// one area of the coordinate editor, the field takes the space that is left
+.coord_row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+
+    label {
+        flex: 0 0 4.5em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    input {
+        flex: 1;
+        min-width: 0;
+    }
+
+    // an area we are not allowed to hunt, it can still be filled in
+    &[huntable=false] {
+        opacity: 0.5;
+    }
+
+    // keeps its width while empty, so the fields line up
+    .status {
+        width: 1.8em;
+        padding: 0;
+    }
+}
+
 input[updated=false] {
     background-color: aqua;
 }
