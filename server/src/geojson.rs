@@ -56,7 +56,7 @@ pub async fn reload_geojson_loop(state: &'static AppState) {
         println!("reloading geojson");
         match get_geo(state).await {
             Ok(new) => state.geojson.store(Arc::new(new)),
-            Err(err) => println!("error getting geojson: {err}"),
+            Err(err) => println!("error getting geojson: {err:#}"),
         }
     }
 }
