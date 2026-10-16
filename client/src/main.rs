@@ -317,7 +317,7 @@ fn location_editor(key: &'static str, areas: Vec<Area>) {
                 .collect::<Vec<_>>();
 
             view! {
-                summary {"Coordinaten"}
+                summary(title="Coordinaten") { span(class="icon") {"📍"} span(class="label") {" Coordinaten"} }
                 div(class="slot") {
                     button(title="Vorig uur", on:click=move |_| step(false)) {"◀"}
                     input(r#type="time", bind:value=current_time)

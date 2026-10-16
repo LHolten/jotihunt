@@ -26,6 +26,27 @@ body {
     padding: 8px;
 }
 
+// a folded panel only shows its emoji, so it takes little room on the map
+#panel_column>details:not([open]) {
+    align-self: flex-start;
+
+    >summary {
+        list-style: none;
+
+        &::-webkit-details-marker {
+            display: none;
+        }
+
+        .label {
+            display: none;
+        }
+    }
+}
+
+#panel_column>details>summary {
+    cursor: pointer;
+}
+
 details details {
     padding-top: 8px;
 }

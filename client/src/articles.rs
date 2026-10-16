@@ -163,7 +163,7 @@ pub fn articles() {
             });
 
             view! {
-                summary {"Tijdlijn"}
+                summary(title="Tijdlijn") { span(class="icon") {"📰"} span(class="label") {" Tijdlijn"} }
                 div(class="field") {
                     label(r#for="everything"){"Berichten: "}
                     input(r#type="checkbox", id="everything", bind:checked=everything)
