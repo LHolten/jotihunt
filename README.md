@@ -6,7 +6,7 @@ The interface is in Dutch.
 
 ## What it does
 
-- **Fox locations.** Enter the coordinates of a fox for a given time. Every fox gets a trail of markers on the map, connected by a line in the colour of its area. Edits show up for everyone right away.
+- **Fox locations.** Pick a time, by default the last whole hour of a hint or "nu" for a hunt, and enter the coordinates of each area. Every fox gets a trail of markers on the map, connected by a line in the colour of its area. Edits show up for everyone right away.
 - **Three coordinate formats.** Rijksdriehoek as used in the hints (`xxxx, yyyy`, four digits each), decimal degrees (`51.954, 5.872`) or degrees, minutes and seconds (`52°00'35.4"N 4°25'08.7"E`).
 - **Timeline.** Hints, and optionally all other messages and the status changes of the areas, are taken from the jotihunt.nl API. A new item is announced with a popup and spoken text.
 - **Participating groups.** All groups are drawn on the map with a 500 m circle, coloured by area.
