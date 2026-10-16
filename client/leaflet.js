@@ -426,3 +426,107 @@ function set_custom(marker, name, f = 0.75) {
 export function zoom_to(marker) {
     map.flyTo(marker.getLatLng());
 }
+
+// my location: a blue dot where the phone is. While the map follows it, the map is centered on
+// the dot. Panning the map stops following, the dot stays, the button starts following again.
+const my_color = "#4285f4";
+const follow_zoom = 16;
+let my_dot = null;
+let my_accuracy = null;
+let following = false;
+let watch_started = false;
+let locate_link;
+
+function show_my_location(latlng, accuracy) {
+    if (!my_dot) {
+        my_accuracy = L.circle(latlng, {
+            radius: accuracy,
+            color: my_color,
+            weight: 1,
+            fillColor: my_color,
+            fillOpacity: 0.15,
+            interactive: false,
+        }).addTo(map);
+        my_dot = L.circleMarker(latlng, {
+            radius: 8,
+            color: "white",
+            weight: 3,
+            fillColor: my_color,
+            fillOpacity: 1,
+            interactive: false,
+        }).addTo(map);
+        if (following) {
+            map.setView(latlng, Math.max(map.getZoom(), follow_zoom));
+        }
+    }
+    my_dot.setLatLng(latlng);
+    my_accuracy.setLatLng(latlng).setRadius(accuracy);
+    if (following) {
+        map.panTo(latlng);
+    }
+}
+
+function start_watching_location() {
+    watch_started = true;
+    navigator.geolocation.watchPosition(
+        (pos) => {
+            const { latitude, longitude, accuracy } = pos.coords;
+            show_my_location(L.latLng(latitude, longitude), accuracy);
+        },
+        () => {
+            if (following) {
+                following = false;
+                update_locate_link();
+                alert("could not get your location");
+            }
+        },
+        { enableHighAccuracy: true },
+    );
+}
+
+function toggle_following() {
+    following = !following;
+    if (following) {
+        if (!watch_started) {
+            start_watching_location();
+        }
+        if (my_dot) {
+            map.setView(my_dot.getLatLng(), Math.max(map.getZoom(), follow_zoom));
+        }
+    }
+    update_locate_link();
+}
+
+function update_locate_link() {
+    locate_link.classList.toggle("following", following);
+}
+
+// stop following when the user pans, the dot stays where it is
+map.on("dragstart", () => {
+    if (following) {
+        following = false;
+        update_locate_link();
+    }
+});
+
+// the button under the zoom buttons, the icon is the crosshair of most map apps
+const locate_svg = `<svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm8.94 3A8.994 8.994 0 0 0 13 3.06V1h-2v2.06A8.994 8.994 0 0 0 3.06 11H1v2h2.06A8.994 8.994 0 0 0 11 20.94V23h2v-2.06A8.994 8.994 0 0 0 20.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>`;
+
+function add_locate_control() {
+    const control = L.control({ position: "bottomleft" });
+    control.onAdd = () => {
+        const bar = L.DomUtil.create("div", "leaflet-bar");
+        L.DomEvent.disableClickPropagation(bar);
+        locate_link = L.DomUtil.create("a", "locate", bar);
+        locate_link.title = "Mijn locatie";
+        locate_link.setAttribute("role", "button");
+        locate_link.innerHTML = locate_svg;
+        L.DomEvent.on(locate_link, "click", (e) => {
+            L.DomEvent.preventDefault(e);
+            toggle_following();
+        });
+        return bar;
+    };
+    control.addTo(map);
+}
+add_locate_control();

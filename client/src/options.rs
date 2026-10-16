@@ -1,24 +1,19 @@
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    future::ready,
-};
+use std::collections::{hash_map::Entry, HashMap};
 
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
 use gloo::{
-    dialogs::alert,
     storage::{LocalStorage, Storage},
     timers::future::IntervalStream,
     utils::document,
 };
 use jotihunt_shared::Traccar;
 use js_sys::Date;
-use mk_geolocation::{future::PositionStream, PositionOptions};
 use qrcode::{render::svg, QrCode};
 use sycamore::{futures::spawn_local_scoped, prelude::*};
 
 use crate::{
     comms::event_messages,
-    leaflet::{set_group_names, LiveMarker, Marker},
+    leaflet::{set_group_names, LiveMarker},
     HOSTNAME,
 };
 
@@ -86,14 +81,6 @@ pub fn option_panel() {
 
     sycamore::render_to(
         move || {
-            let show_me = create_signal(false);
-
-            create_effect(move || {
-                if show_me.get() {
-                    spawn_local_scoped(my_loc())
-                }
-            });
-
             let group_names = create_signal(LocalStorage::get(GROUP_NAMES_KEY).unwrap_or(true));
             let group_names_zoom =
                 create_signal(LocalStorage::get(GROUP_NAMES_ZOOM_KEY).unwrap_or(14.0_f64));
@@ -113,10 +100,6 @@ pub fn option_panel() {
             view! {
                 summary {"Opties"}
                 div(class="field"){
-                    label(r#for="mijn"){"Mijn locatie:"}
-                    input(id="mijn", r#type="checkbox", bind:checked=show_me)
-                }
-                div(class="field"){
                     label(r#for="group_names"){"Groepsnamen tonen:"}
                     input(id="group_names", r#type="checkbox", bind:checked=group_names)
                 }
@@ -135,29 +118,6 @@ pub fn option_panel() {
         },
         &panel,
     );
-}
-
-async fn my_loc() {
-    let mut options = PositionOptions::new();
-    options.enable_high_accuracy(true);
-    // the marker is removed from the map when it is dropped,
-    // so it is kept until the next position replaces it
-    let mut marker = None;
-    let _ = PositionStream::new_with_options(options)
-        .try_for_each(|pos| {
-            let coords = pos.coords();
-            let m = Marker::new(
-                coords.longitude(),
-                coords.latitude(),
-                "you".to_string(),
-                false,
-            );
-            m.zoom_to();
-            marker = Some(m);
-            ready(Ok(()))
-        })
-        .await;
-    alert("could not get your location")
 }
 
 async fn read_live(address: String) {

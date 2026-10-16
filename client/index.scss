@@ -113,6 +113,23 @@ input[updated=false] {
     filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.5));
 }
 
+// the my location button, blue while the map follows the location
+.leaflet-bar a.locate {
+    color: #000;
+}
+
+.leaflet-bar a.locate.following {
+    color: #4285f4;
+}
+
+.leaflet-bar a.locate svg {
+    width: 18px;
+    height: 18px;
+    margin: 6px auto;
+    display: block;
+    fill: currentColor;
+}
+
 .leaflet-top {
     top: env(safe-area-inset-top);
 }
