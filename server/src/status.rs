@@ -102,7 +102,6 @@ pub async fn retrieve_status_loop(state: &'static AppState) {
         println!("reloading status");
         if let Err(err) = retrieve_status(state).await {
             println!("error getting status: {err:#}");
-            sleep(Duration::from_secs(60)).await;
         }
     }
 }

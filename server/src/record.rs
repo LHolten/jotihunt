@@ -3,22 +3,46 @@ use std::{
     fs,
     path::PathBuf,
     sync::Mutex,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
+
+use reqwest::{header::RETRY_AFTER, Response, StatusCode};
+use tokio::time::sleep;
 
 use crate::AppState;
 
 impl AppState {
     /// The JSON response of `https://jotihunt.nl/api/2.0/{endpoint}`, also saved if there is a [Recorder].
+    ///
+    /// When rate limited, this waits until the limit resets before returning the error.
     pub async fn fetch(&self, endpoint: &str) -> anyhow::Result<String> {
         let url = format!("https://jotihunt.nl/api/2.0/{endpoint}");
-        let res = self.http.get(url).send().await?.error_for_status()?;
+        let res = self.http.get(url).send().await?;
+        if let Some(wait) = retry_after(&res) {
+            sleep(wait).await;
+        }
+        let res = res.error_for_status()?;
         let body = res.text().await?;
         if let Some(record) = &self.record {
             record.save(endpoint, &body);
         }
         Ok(body)
     }
+}
+
+/// How long to wait before the rate limit resets, if the response is a 429 with a `Retry-After` in seconds.
+fn retry_after(res: &Response) -> Option<Duration> {
+    if res.status() != StatusCode::TOO_MANY_REQUESTS {
+        return None;
+    }
+    let secs = res
+        .headers()
+        .get(RETRY_AFTER)?
+        .to_str()
+        .ok()?
+        .parse()
+        .ok()?;
+    Some(Duration::from_secs(secs))
 }
 
 /// Saves responses as `{dir}/{endpoint}/{unix time in milliseconds}.json`.

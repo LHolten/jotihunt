@@ -98,7 +98,6 @@ pub async fn retrieve_articles_loop(state: &'static AppState) {
         println!("reloading articles");
         if let Err(err) = retrieve_articles_inner(state).await {
             println!("error getting articles: {err:#}");
-            sleep(Duration::from_secs(5)).await;
         }
     }
 }
