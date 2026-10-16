@@ -34,6 +34,9 @@ extern "C" {
 
     /// Whether the group names are always shown from `zoom` on, instead of only on hover.
     pub fn set_group_names(enabled: bool, zoom: f64);
+
+    /// Shows the current `status` of `area` in the legend, `since` is a date time string.
+    pub fn set_area_status(area: &str, status: &str, since: &str);
 }
 
 pub struct Marker(JsMarker);
