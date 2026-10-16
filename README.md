@@ -4,6 +4,19 @@ A shared live map for a scouting group taking part in the [Jotihunt](https://jot
 
 The interface is in Dutch.
 
+## About the Jotihunt
+
+The Jotihunt is a 26-hour game for scouting groups in Gelderland, run by volunteers on the third weekend of October, alongside JOTA-JOTI. It starts on Saturday at 10:00 and ends on Sunday at 12:00. The game is aimed at Scouts aged 14 and up (Explorers and older). The rules and news are published on [jotihunt.nl](https://jotihunt.nl), see the [spelregels](https://jotihunt.nl/page/spelregels), the [FAQ](https://jotihunt.nl/page/faq) and the [begrippenlijst](https://jotihunt.nl/page/begrippenlijst).
+
+- **Foxes and areas.** Teams of three foxes (a *vossenteam*) walk through Gelderland. Each team belongs to an area (*deelgebied*, also called a cluster) named after it, such as Alpha, and visits every group in that area. At 23:00 on Saturday the foxes are swapped for fresh ones, which splits the game into two halves of 13 hours. Before the game each group hears which foxes it may hunt.
+- **Hints.** Every hour the organisation publishes a hint per fox: a puzzle whose answer is usually the fox's position as an eight-digit Rijksdriehoek coordinate (`1234 5678`), sometimes a word. Solving it quickly also earns a point.
+- **Hunts.** Hunters find a fox in person and get a code from them, which must be entered on the website within 15 minutes. A hunt is worth 3 points, or 6 on the fox of your own area, and double during the announced *Happy Hour*. The same fox may be hunted once an hour, and foxes may never be followed.
+- **Fox status.** Each fox team has a status on the website: green (active) and orange (on the move) may be hunted, red (inactive, for example during their one long move per half) may not.
+- **Counter-hunts.** The foxes also try to place a *tegenhunt* sticker within 500 m of each group's home base. The group then gets a compass direction via Telegram and has 30 minutes to find the sticker.
+- **Assignments.** Throughout the weekend the organisation publishes creative assignments (photo, video or text) that earn points too.
+
+The group with the most points on Sunday wins the *wisseltrofee*. The public [API](https://jotihunt.nl/page/api) lists the participating groups, the status of each area and all published articles (hints, assignments and news). It is rate limited to 30 calls per minute; going over it gets you blocked.
+
 ## What it does
 
 - **Fox locations.** Pick a time, by default the last whole hour of a hint or "nu" for a hunt, and enter the coordinates of each area. Every fox gets a trail of markers on the map, connected by a line in the colour of its area. Edits show up for everyone right away.
