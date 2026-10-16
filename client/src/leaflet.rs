@@ -20,6 +20,10 @@ extern "C" {
     #[wasm_bindgen(js_name = remove_layer)]
     fn remove_line(line: &JsLine);
 
+    /// The areas in the order that picks their colors. The groups in `excluded` are grey.
+    /// Needs to be called before anything is drawn.
+    pub fn set_areas(names: Vec<String>, excluded: Vec<String>);
+
     /// Shows the participating groups from the geojson at `url` on the map.
     pub fn load_participants(url: &str);
 }

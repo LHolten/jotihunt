@@ -59,7 +59,7 @@ Run the tests with `cargo test`.
 
 **Client.** Every push to `master` builds the client with `trunk build --release` and publishes it to GitHub Pages, see [.github/workflows/main.yml](.github/workflows/main.yml). To host it for another server, change `HOSTNAME`.
 
-**Server.** A release build on Linux or macOS listens on the unix socket `/run/jotihunt/socket` and expects a reverse proxy in front of it that takes care of https. It reads `password` and `joti.sqlite` from its working directory.
+**Server.** A release build on Linux or macOS listens on the unix socket `/run/jotihunt/socket` and expects a reverse proxy in front of it that takes care of https. It reads `password` and `joti.sqlite` from its working directory, and `excluded_areas` if it exists: the areas we may not hunt, one per line, whose groups are drawn grey.
 
 [flake.nix](flake.nix) has a package for the server and a NixOS module that sets up the systemd service, a `jotihunt` user, the state directory `/var/lib/jotihunt` and a Caddy virtual host for `jotihunt.lucasholten.com`:
 

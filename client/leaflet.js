@@ -2,41 +2,60 @@ function marker_url(color) {
     return `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`;
 }
 
-function make_icon(large, color) {
-    let f;
-    if (large) {
-        f = 1;
-    } else {
-        f = 0.5;
-    }
+function make_icon(color) {
     return new L.Icon({
         iconUrl: marker_url(color),
         shadowUrl:
             "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
-        iconSize: [25 * f, 41 * f],
-        iconAnchor: [12 * f, 41 * f],
-        popupAnchor: [1 * f, -34 * f],
-        shadowSize: [41 * f, 41 * f],
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41],
     });
 }
 
-function fox_color(fox) {
-    let color_map = {
-        a: "red",
-        b: "green",
-        c: "blue",
-        d: "yellow",
-        e: "black",
-        f: "grey",
-        g: "orange",
-        h: "violet",
-    };
+// the colors of the areas, in the order of `/areas.json`
+const palette = [
+    "#cb2b3e", // red
+    "#2aad27", // green
+    "#2a81cb", // blue
+    "#cac428", // yellow
+    "#3d3d3d", // black
+    "#1fa5a0", // teal
+    "#cb8427", // orange
+    "#9c2bcb", // violet
+    "#e05fb4", // pink
+    "#8a5a2b", // brown
+    "#1c3f94", // navy
+    "#7fb800", // lime
+];
+// groups without a known area, and groups in an area we are not allowed to hunt
+const no_color = "#7b7b7b";
 
-    if (fox == null) {
-        return "grey";
+// set by `set_areas`, before anything is drawn
+let area_names = [];
+let excluded_areas = new Set();
+
+export function set_areas(names, excluded) {
+    area_names = names;
+    excluded_areas = new Set(excluded);
+}
+
+function area_color(area) {
+    const i = area_names.indexOf(area);
+    if (i < 0) {
+        return no_color;
     }
-    let char = fox.charAt(0).toLowerCase();
-    return color_map[char] ?? "grey";
+    if (i < palette.length) {
+        return palette[i];
+    }
+    // more areas than colors, spread the rest over the color wheel
+    return `hsl(${(i * 137.5) % 360}, 60%, 45%)`;
+}
+
+// `pin.svg` in `color`, the size of the leaflet marker, its tip is at (12.5, 41)
+function pin_svg(color) {
+    return `<svg viewBox="0 0 25 41" style="color: ${color}"><use href="pin.svg#pin"/></svg>`;
 }
 
 function make_map() {
@@ -89,18 +108,32 @@ export function load_participants(url) {
         .then((data) => {
             L.geoJSON(data, {
                 pointToLayer: function (feature, latlng) {
-                    L.circle(latlng, { radius: 500, opacity: 0.1 }).addTo(map);
-                    const color = fox_color(feature.properties.area);
-                    const icon = make_icon(false, color);
-                    return L.marker(latlng)
+                    const area = feature.properties.area;
+                    const excluded = excluded_areas.has(area);
+                    const circle = { radius: 500, opacity: 0.1 };
+                    if (excluded) {
+                        circle.color = no_color;
+                    }
+                    L.circle(latlng, circle).addTo(map);
+                    const f = 0.5;
+                    const icon = L.divIcon({
+                        className: "pin",
+                        html: pin_svg(excluded ? no_color : area_color(area)),
+                        iconSize: [25 * f, 41 * f],
+                        iconAnchor: [12.5 * f, 41 * f],
+                        popupAnchor: [0, -34 * f],
+                    });
+                    return L.marker(latlng, { opacity: excluded ? 0.5 : 1 })
                         .setIcon(icon)
                         .bindTooltip(text_tooltip(feature.properties.name))
                         .bindPopup(make_popup(latlng.lat, latlng.lng));
                 },
             }).addTo(map);
 
-            const areas = data.features.map((feature) => feature.properties.area);
-            add_legend([...new Set(areas)].sort());
+            const unknown = data.features.some(
+                (feature) => !area_names.includes(feature.properties.area),
+            );
+            add_legend(unknown);
         });
 }
 
@@ -129,16 +162,23 @@ function make_popup(lat, lng) {
     return div;
 }
 
-// shows the participant marker of each area
-function add_legend(areas) {
+// shows the color of each area, `unknown` adds a row for groups without a known area
+function add_legend(unknown) {
     const legend = L.control({ position: "bottomright" });
     legend.onAdd = () => {
         const div = L.DomUtil.create("div", "legend");
-        for (const area of areas) {
-            const row = L.DomUtil.create("div", "", div);
-            const icon = L.DomUtil.create("img", "", row);
-            icon.src = marker_url(fox_color(area));
-            row.append(area ?? "onbekend");
+        const add_row = (color, label, excluded) => {
+            const row = L.DomUtil.create("div", excluded ? "excluded" : "", div);
+            L.DomUtil.create("span", "pin", row).innerHTML = pin_svg(color);
+            row.append(label);
+        };
+        for (const area of area_names) {
+            // the area keeps its color for the foxes, only its groups are grey
+            const excluded = excluded_areas.has(area);
+            add_row(area_color(area), excluded ? `${area} (niet jagen)` : area, excluded);
+        }
+        if (unknown) {
+            add_row(no_color, "onbekend", false);
         }
         return div;
     };
@@ -169,7 +209,7 @@ export function remove_layer(marker) {
 }
 
 export function new_line(fox) {
-    return L.polyline([], { color: fox_color(fox) }).addTo(map);
+    return L.polyline([], { color: area_color(fox) }).addTo(map);
 }
 
 export function add_line_marker(line, marker) {
@@ -177,7 +217,7 @@ export function add_line_marker(line, marker) {
 }
 
 export function set_marker_color(marker, color) {
-    let icon = make_icon(true, color);
+    let icon = make_icon(color);
     marker.setIcon(icon);
 }
 
@@ -185,22 +225,10 @@ export function set_human(marker) {
     set_custom(marker, "human.png");
 }
 
-// the colors of the participant markers
-const marker_hex = {
-    red: "#cb2b3e",
-    green: "#2aad27",
-    blue: "#2a81cb",
-    yellow: "#cac428",
-    black: "#3d3d3d",
-    grey: "#7b7b7b",
-    orange: "#cb8427",
-    violet: "#9c2bcb",
-};
-
 // `fox.svg` in the color of the area, its tip is at (16, 35), styled by `.fox-pin`
 export function set_fox(marker, fox, old) {
     const f = 0.75;
-    const color = marker_hex[fox_color(fox)];
+    const color = area_color(fox);
     const icon = L.divIcon({
         className: "fox-pin",
         html: `<svg viewBox="0 0 32 37" style="color: ${color}"><use href="fox.svg#fox"/></svg>`,
