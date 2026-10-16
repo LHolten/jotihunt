@@ -1,23 +1,35 @@
 use std::{collections::HashMap, future::ready};
 
 use futures::{StreamExt, TryStreamExt};
-use gloo::{dialogs::alert, timers::future::IntervalStream, utils::document};
+use gloo::{
+    dialogs::alert,
+    storage::{LocalStorage, Storage},
+    timers::future::IntervalStream,
+    utils::document,
+};
 use jotihunt_shared::{domain::Fox, Traccar};
 use js_sys::Date;
 use mk_geolocation::{future::PositionStream, PositionOptions};
 use qrcode::{render::svg, QrCode};
 use sycamore::{futures::spawn_local_scoped, prelude::*};
 
-use crate::{comms::event_messages, leaflet::Marker, HOSTNAME};
+use crate::{
+    comms::event_messages,
+    leaflet::{set_group_names, Marker},
+    HOSTNAME,
+};
 
 /// Seconds between traccar updates of a phone that is standing still,
 /// markers without an update for this long are removed from the map.
 const HEARTBEAT_SECS: u32 = 5 * 60;
 
-pub fn option_panel(key: &'static str) {
+const GROUP_NAMES_KEY: &str = "group_names";
+const GROUP_NAMES_ZOOM_KEY: &str = "group_names_zoom";
+
+pub fn traccar_panel(key: &'static str) {
     let panel = document()
-        .get_element_by_id("option_panel")
-        .expect("there is a add_point button");
+        .get_element_by_id("traccar_panel")
+        .expect("there is a traccar panel");
 
     sycamore::render_to(
         move || {
@@ -27,14 +39,6 @@ pub fn option_panel(key: &'static str) {
                 if show_live.get() {
                     let address = format!("https://{HOSTNAME}/{key}/live");
                     spawn_local_scoped(read_live(address))
-                }
-            });
-
-            let show_me = create_signal(false);
-
-            create_effect(move || {
-                if show_me.get() {
-                    spawn_local_scoped(my_loc())
                 }
             });
 
@@ -51,7 +55,7 @@ pub fn option_panel(key: &'static str) {
                 .build();
 
             view! {
-                summary {"Opties"}
+                summary {"Traccar"}
                 ol {
                     li {
                         "Installeer de "
@@ -65,8 +69,64 @@ pub fn option_panel(key: &'static str) {
                 div(class="field"){
                     label(r#for="traccar"){"Traccar bekijken:"}
                     input(id="traccar", r#type="checkbox", bind:checked=show_live)
+                }
+            }
+        },
+        &panel,
+    );
+}
+
+pub fn option_panel() {
+    let panel = document()
+        .get_element_by_id("option_panel")
+        .expect("there is a option panel");
+
+    sycamore::render_to(
+        move || {
+            let show_me = create_signal(false);
+
+            create_effect(move || {
+                if show_me.get() {
+                    spawn_local_scoped(my_loc())
+                }
+            });
+
+            let group_names = create_signal(LocalStorage::get(GROUP_NAMES_KEY).unwrap_or(true));
+            let group_names_zoom =
+                create_signal(LocalStorage::get(GROUP_NAMES_ZOOM_KEY).unwrap_or(14.0_f64));
+
+            create_effect(move || {
+                let enabled = group_names.get();
+                let zoom = group_names_zoom.get();
+                // an emptied number field is NaN
+                if zoom.is_nan() {
+                    return;
+                }
+                let _ = LocalStorage::set(GROUP_NAMES_KEY, enabled);
+                let _ = LocalStorage::set(GROUP_NAMES_ZOOM_KEY, zoom);
+                set_group_names(enabled, zoom);
+            });
+
+            view! {
+                summary {"Opties"}
+                div(class="field"){
                     label(r#for="mijn"){"Mijn locatie:"}
                     input(id="mijn", r#type="checkbox", bind:checked=show_me)
+                }
+                div(class="field"){
+                    label(r#for="group_names"){"Groepsnamen tonen:"}
+                    input(id="group_names", r#type="checkbox", bind:checked=group_names)
+                }
+                div(class="field"){
+                    label(r#for="group_names_zoom"){"Vanaf zoomniveau:"}
+                    input(
+                        id="group_names_zoom",
+                        r#type="number",
+                        min="1",
+                        max="19",
+                        disabled=!group_names.get(),
+                        bind:valueAsNumber=group_names_zoom,
+                    )
                 }
             }
         },

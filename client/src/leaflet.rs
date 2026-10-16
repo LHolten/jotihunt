@@ -26,6 +26,9 @@ extern "C" {
 
     /// Shows the participating groups from the geojson at `url` on the map.
     pub fn load_participants(url: &str);
+
+    /// Whether the group names are always shown from `zoom` on, instead of only on hover.
+    pub fn set_group_names(enabled: bool, zoom: f64);
 }
 
 pub struct Marker(JsMarker);

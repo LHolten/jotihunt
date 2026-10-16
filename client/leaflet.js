@@ -106,7 +106,7 @@ export function load_participants(url) {
     fetch(url)
         .then((res) => res.json())
         .then((data) => {
-            L.geoJSON(data, {
+            groups = L.geoJSON(data, {
                 pointToLayer: function (feature, latlng) {
                     const area = feature.properties.area;
                     const excluded = excluded_areas.has(area);
@@ -125,10 +125,10 @@ export function load_participants(url) {
                     });
                     return L.marker(latlng, { opacity: excluded ? 0.5 : 1 })
                         .setIcon(icon)
-                        .bindTooltip(text_tooltip(feature.properties.name))
                         .bindPopup(make_popup(latlng.lat, latlng.lng));
                 },
             }).addTo(map);
+            show_group_names();
 
             const unknown = data.features.some(
                 (feature) => !area_names.includes(feature.properties.area),
@@ -136,6 +136,41 @@ export function load_participants(url) {
             add_legend(unknown);
         });
 }
+
+// the participant markers, set by `load_participants`
+let groups;
+// set by `set_group_names`, from `group_names_zoom` on the group names are always shown,
+// below it (or when disabled) only on hover
+let group_names_enabled = true;
+let group_names_zoom = 14;
+let group_names_shown;
+
+export function set_group_names(enabled, zoom) {
+    group_names_enabled = enabled;
+    group_names_zoom = zoom;
+    show_group_names();
+}
+
+function show_group_names() {
+    if (!groups) {
+        return;
+    }
+    const shown = group_names_enabled && map.getZoom() >= group_names_zoom;
+    if (shown === group_names_shown) {
+        return;
+    }
+    group_names_shown = shown;
+    // `permanent` can only be set when binding
+    const options = shown
+        ? { permanent: true, direction: "bottom", className: "group-name" }
+        : {};
+    groups.eachLayer((marker) => {
+        marker
+            .unbindTooltip()
+            .bindTooltip(text_tooltip(marker.feature.properties.name), options);
+    });
+}
+map.on("zoomend", show_group_names);
 
 // leaflet renders a string tooltip as html, but names like traccar identifiers are user input
 function text_tooltip(name) {
