@@ -65,6 +65,15 @@ function make_map() {
         zoomControl: false,
     });
 
+    // bottom corners stack upwards, so the scale goes below the zoom buttons
+    L.control
+        .scale({
+            position: "bottomleft",
+            imperial: false,
+            maxWidth: 120,
+        })
+        .addTo(map);
+
     L.control
         .zoom({
             position: "bottomleft",
