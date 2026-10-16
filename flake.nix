@@ -35,7 +35,7 @@
           systemd.services.jotihunt = {
             wantedBy = ["multi-user.target"];
             serviceConfig = {
-              # the responses of the API are kept, to rehearse with `--replay` later
+              # the responses of the API are kept, to test with them outside the hunt
               ExecStart = "${server}/bin/server --record recordings";
               User = "jotihunt";
               Group = "jotihunt";

@@ -82,7 +82,7 @@ pub async fn article_content(state: &'static AppState, key: ArticleKey) -> Optio
 }
 
 async fn retrieve_articles_inner(state: &'static AppState) -> anyhow::Result<()> {
-    let res = state.source.fetch("articles").await?;
+    let res = state.fetch("articles").await?;
     let areas: Articles = serde_json::from_str(&res)?;
     for area in areas.data {
         update_single_article(state, area).await;
@@ -98,7 +98,7 @@ pub async fn retrieve_articles_loop(state: &'static AppState) {
         }
 
         // every 5 seconds
-        sleep(state.source.interval(Duration::from_secs(5))).await;
+        sleep(Duration::from_secs(5)).await;
     }
 }
 

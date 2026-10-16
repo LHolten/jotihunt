@@ -20,7 +20,7 @@ struct Group {
 }
 
 pub async fn get_geo(state: &'static AppState) -> anyhow::Result<String> {
-    let res = state.source.fetch("subscriptions").await?;
+    let res = state.fetch("subscriptions").await?;
     let sub: Subscriptions = serde_json::from_str(&res)?;
 
     let mut features = vec![];
@@ -52,7 +52,7 @@ pub async fn get_geo(state: &'static AppState) -> anyhow::Result<String> {
 pub async fn reload_geojson_loop(state: &'static AppState) {
     loop {
         // every hour
-        sleep(state.source.interval(Duration::from_secs(60 * 60))).await;
+        sleep(Duration::from_secs(60 * 60)).await;
         println!("reloading geojson");
         match get_geo(state).await {
             Ok(new) => state.geojson.store(Arc::new(new)),

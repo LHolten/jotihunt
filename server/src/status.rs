@@ -49,7 +49,7 @@ async fn update_single_status(state: &'static AppState, area: Area) {
 
 /// Update the status table and the list of fox names.
 pub async fn retrieve_status(state: &'static AppState) -> anyhow::Result<()> {
-    let res = state.source.fetch("areas").await?;
+    let res = state.fetch("areas").await?;
     let areas: Areas = serde_json::from_str(&res)?;
     let mut foxes = vec![];
     for area in areas.data {
@@ -65,7 +65,7 @@ pub async fn retrieve_status(state: &'static AppState) -> anyhow::Result<()> {
 pub async fn retrieve_status_loop(state: &'static AppState) {
     loop {
         // every minute
-        sleep(state.source.interval(Duration::from_secs(60))).await;
+        sleep(Duration::from_secs(60)).await;
 
         println!("reloading status");
         if let Err(err) = retrieve_status(state).await {

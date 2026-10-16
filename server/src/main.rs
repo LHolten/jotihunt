@@ -3,7 +3,7 @@ mod db;
 mod geojson;
 mod location;
 mod login;
-mod source;
+mod record;
 mod status;
 mod traccar;
 
@@ -41,12 +41,12 @@ use jotihunt_shared::{
 };
 use location::{create_location, delete_location, modify_location};
 use login::login;
+use record::Recorder;
 use rust_query::{
     migration::Config, private::IntoJoinable, Database, DatabaseAsync, Expr, FromExpr, Select,
     Table, TableRow,
 };
 use serde::Serialize;
-use source::{Recorder, Replay, Source};
 
 use db::{Article, ArticleRow, Location, LocationRow, Schema, Status, StatusRow};
 use status::{retrieve_status, retrieve_status_loop};
@@ -57,34 +57,14 @@ use uuid::Uuid;
 
 #[derive(Parser)]
 struct Args {
-    /// Save the responses of the jotihunt.nl API in this directory, to replay them later
-    #[arg(long, conflicts_with = "replay")]
-    record: Option<std::path::PathBuf>,
-    /// Rehearse with the responses in this directory instead of the jotihunt.nl API.
-    /// The hunt starts when the server starts and nothing is kept, joti.sqlite is not used
+    /// Save the responses of the jotihunt.nl API in this directory
     #[arg(long)]
-    replay: Option<std::path::PathBuf>,
-    /// How many times faster than real time the replay goes
-    #[arg(long, default_value_t = 1.0, requires = "replay")]
-    speed: f64,
+    record: Option<std::path::PathBuf>,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-    // timestamps are different in every replay, so its rows should not end up in the real database
-    let (source, config) = match args.replay {
-        Some(dir) => (
-            Source::Replay(Replay::open(dir, args.speed)?),
-            Config::open_in_memory(),
-        ),
-        None => (
-            Source::Api {
-                record: args.record.map(Recorder::new),
-            },
-            Config::open("joti.sqlite"),
-        ),
-    };
 
     if let Ok(mut file) = File::create_new("password") {
         write!(&mut file, "test").unwrap();
@@ -94,8 +74,8 @@ async fn main() -> anyhow::Result<()> {
     println!("password is: {}", password);
 
     let state = leak(AppState {
-        source,
-        ..AppState::new(config)
+        record: args.record.map(Recorder::new),
+        ..AppState::new(Config::open("joti.sqlite"))
     });
     state.geojson.store(Arc::new(get_geo(state).await.unwrap()));
     retrieve_status(state).await.unwrap();
@@ -240,7 +220,8 @@ async fn main() -> anyhow::Result<()> {
 pub struct AppState {
     /// Needed in the url of all endpoints that access the database.
     pub secret: Uuid,
-    pub source: Source,
+    /// Saves the responses of the jotihunt.nl API if set.
+    pub record: Option<Recorder>,
     pub db: DatabaseAsync<Schema>,
     pub live_traccar: broadcast::Sender<Traccar>,
     pub live_locations: Live,
@@ -251,12 +232,12 @@ pub struct AppState {
 }
 
 impl AppState {
-    /// Uses the jotihunt.nl API, `geojson` and `fox_list` start out empty.
+    /// Nothing is recorded, `geojson` and `fox_list` start out empty.
     pub fn new(config: Config) -> Self {
         let db = Database::<Schema>::new(config);
         Self {
             secret: Uuid::new_v4(),
-            source: Source::Api { record: None },
+            record: None,
             db: DatabaseAsync::new(Arc::new(db)),
             live_traccar: broadcast::channel(16).0,
             live_locations: broadcast::channel(4096).0,
