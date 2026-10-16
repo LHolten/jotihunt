@@ -8,10 +8,15 @@ extern "C" {
     #[wasm_bindgen(js_name = remove_layer)]
     fn remove_marker(marker: &JsMarker);
     fn set_marker_color(marker: &JsMarker, color: &str);
-    fn set_human(marker: &JsMarker);
     fn set_fox(marker: &JsMarker, fox: &str, old: bool);
 
     fn zoom_to(marker: &JsMarker);
+
+    type JsLiveMarker;
+
+    fn add_live_marker(lng: f64, lat: f64, name: String) -> JsLiveMarker;
+    fn move_live_marker(live: &JsLiveMarker, lng: f64, lat: f64);
+    fn remove_live_marker(live: &JsLiveMarker);
 
     type JsLine;
 
@@ -40,9 +45,6 @@ impl Marker {
     pub fn set_color(&self, color: &str) {
         set_marker_color(&self.0, color)
     }
-    pub fn set_human(&self) {
-        set_human(&self.0)
-    }
     /// Uses the color of the `fox` area.
     pub fn set_fox(&self, fox: &str, old: bool) {
         set_fox(&self.0, fox, old)
@@ -55,6 +57,24 @@ impl Marker {
 impl Drop for Marker {
     fn drop(&mut self) {
         remove_marker(&self.0)
+    }
+}
+
+/// A live location with an arrow in the direction it moves and a trail of the last minute.
+pub struct LiveMarker(JsLiveMarker);
+
+impl LiveMarker {
+    pub fn new(lng: f64, lat: f64, name: String) -> Self {
+        Self(add_live_marker(lng, lat, name))
+    }
+    pub fn move_to(&self, lng: f64, lat: f64) {
+        move_live_marker(&self.0, lng, lat)
+    }
+}
+
+impl Drop for LiveMarker {
+    fn drop(&mut self) {
+        remove_live_marker(&self.0)
     }
 }
 

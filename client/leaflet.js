@@ -123,9 +123,16 @@ export function load_participants(url) {
                         iconAnchor: [12.5 * f, 41 * f],
                         popupAnchor: [0, -34 * f],
                     });
-                    return L.marker(latlng, { opacity: excluded ? 0.5 : 1 })
+                    const marker = L.marker(latlng, { opacity: excluded ? 0.5 : 1 })
                         .setIcon(icon)
                         .bindPopup(make_popup(latlng.lat, latlng.lng));
+                    // the name box is tinted with the area color, `.group-name` reads `--area`
+                    marker.on("tooltipopen", (e) =>
+                        e.tooltip
+                            .getElement()
+                            ?.style.setProperty("--area", area_color(area)),
+                    );
+                    return marker;
                 },
             }).addTo(map);
             show_group_names();
@@ -149,6 +156,7 @@ export function set_group_names(enabled, zoom) {
     group_names_enabled = enabled;
     group_names_zoom = zoom;
     show_group_names();
+    show_live_names();
 }
 
 function show_group_names() {
@@ -170,7 +178,10 @@ function show_group_names() {
             .bindTooltip(text_tooltip(marker.feature.properties.name), options);
     });
 }
-map.on("zoomend", show_group_names);
+map.on("zoomend", () => {
+    show_group_names();
+    show_live_names();
+});
 
 // leaflet renders a string tooltip as html, but names like traccar identifiers are user input
 function text_tooltip(name) {
@@ -256,8 +267,130 @@ export function set_marker_color(marker, color) {
     marker.setIcon(icon);
 }
 
-export function set_human(marker) {
-    set_custom(marker, "human.png");
+// how long the trail behind a live location takes to fade out
+const trail_ms = 60 * 1000;
+// gps jitters by several meters, only moves this long count as movement
+const move_m = 20;
+// the live locations, set by `add_live_marker`, to show their names when zoomed in
+const live_markers = new Set();
+
+// a color from the name, so everyone sees the same color for the same location.
+// Blue is left out, it is our own location
+function live_color(name) {
+    // fnv-1a hash
+    let hash = 2166136261;
+    for (const c of name) {
+        hash = Math.imul(hash ^ c.codePointAt(0), 16777619);
+    }
+    let hue = (hash >>> 0) % 300;
+    if (hue >= 190) {
+        hue += 60;
+    }
+    return `hsl(${hue}, 85%, 45%)`;
+}
+
+// an arrow pointing in the direction of travel (degrees clockwise from north),
+// or a dot while the direction is not known yet. Styled by `.live-arrow`
+function live_icon(bearing, color) {
+    const shape =
+        bearing === null
+            ? `<circle cx="12" cy="12" r="6"/>`
+            : `<path d="M12 2L19.5 20L12 15.5L4.5 20Z"/>`;
+    const rotate = bearing === null ? "" : `transform: rotate(${bearing}deg);`;
+    return L.divIcon({
+        className: "live-arrow",
+        html: `<svg viewBox="0 0 24 24" style="color: ${color}; ${rotate}">${shape}</svg>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+        tooltipAnchor: [12, 0],
+        popupAnchor: [0, -12],
+    });
+}
+
+// the direction from `from` to `to` in degrees clockwise from north, flat is fine for short distances
+function bearing(from, to) {
+    const dx = (to.lng - from.lng) * Math.cos((from.lat * Math.PI) / 180);
+    const dy = to.lat - from.lat;
+    return (Math.atan2(dx, dy) * 180) / Math.PI;
+}
+
+// a traccar location, with an arrow in the direction it moves and a trail that fades out
+export function add_live_marker(lng, lat, name) {
+    const latlng = L.latLng(lat, lng);
+    const color = live_color(name);
+    const live = {
+        name,
+        color,
+        marker: L.marker(latlng, { icon: live_icon(null, color) })
+            .bindTooltip(text_tooltip(name))
+            .bindPopup(make_popup(lat, lng))
+            .addTo(map),
+        // where the trail continues from, only moves on when the location really changed
+        anchor: { latlng, time: Date.now() },
+        // the segments of the trail, oldest first
+        trail: [],
+        named: false,
+    };
+    live.timer = setInterval(() => fade_trail(live), 1000);
+    live_markers.add(live);
+    show_live_names();
+    return live;
+}
+
+export function move_live_marker(live, lng, lat) {
+    const latlng = L.latLng(lat, lng);
+    const now = Date.now();
+    const anchor = live.anchor;
+    // a phone that stands still keeps sending its location, and gps jitters
+    if (map.distance(anchor.latlng, latlng) >= move_m) {
+        live.marker.setIcon(live_icon(bearing(anchor.latlng, latlng), live.color));
+        // no line through the gap when the phone was silent for a while
+        if (now - anchor.time < trail_ms) {
+            const line = L.polyline([anchor.latlng, latlng], {
+                color: live.color,
+                weight: 4,
+                interactive: false,
+            }).addTo(map);
+            live.trail.push({ line, time: now });
+        }
+        live.anchor = { latlng, time: now };
+    }
+    live.marker.setLatLng(latlng).setPopupContent(make_popup(lat, lng));
+    fade_trail(live);
+}
+
+function fade_trail(live) {
+    const now = Date.now();
+    while (live.trail.length > 0 && now - live.trail[0].time >= trail_ms) {
+        map.removeLayer(live.trail.shift().line);
+    }
+    for (const { line, time } of live.trail) {
+        line.setStyle({ opacity: 0.8 * (1 - (now - time) / trail_ms) });
+    }
+}
+
+export function remove_live_marker(live) {
+    clearInterval(live.timer);
+    live_markers.delete(live);
+    map.removeLayer(live.marker);
+    for (const { line } of live.trail) {
+        map.removeLayer(line);
+    }
+}
+
+// the names of the live locations, shown like the group names from the zoom level on
+function show_live_names() {
+    const shown = group_names_enabled && map.getZoom() >= group_names_zoom;
+    for (const live of live_markers) {
+        if (shown === live.named) {
+            continue;
+        }
+        live.named = shown;
+        const options = shown
+            ? { permanent: true, direction: "bottom", className: "group-name" }
+            : {};
+        live.marker.unbindTooltip().bindTooltip(text_tooltip(live.name), options);
+    }
 }
 
 // `fox.svg` in the color of the area, its tip is at (16, 35), styled by `.fox-pin`
