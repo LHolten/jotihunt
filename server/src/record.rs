@@ -12,7 +12,7 @@ impl AppState {
     /// The JSON response of `https://jotihunt.nl/api/2.0/{endpoint}`, also saved if there is a [Recorder].
     pub async fn fetch(&self, endpoint: &str) -> anyhow::Result<String> {
         let url = format!("https://jotihunt.nl/api/2.0/{endpoint}");
-        let res = reqwest::get(url).await?.error_for_status()?;
+        let res = self.http.get(url).send().await?.error_for_status()?;
         let body = res.text().await?;
         if let Some(record) = &self.record {
             record.save(endpoint, &body);

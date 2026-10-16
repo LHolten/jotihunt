@@ -230,6 +230,8 @@ pub struct AppState {
     pub secret: Uuid,
     /// Saves the responses of the jotihunt.nl API if set.
     pub record: Option<Recorder>,
+    /// Shared so connections to the jotihunt.nl API are reused.
+    pub http: reqwest::Client,
     pub db: DatabaseAsync<Schema>,
     pub live_traccar: broadcast::Sender<Traccar>,
     pub live_locations: Live,
@@ -247,6 +249,7 @@ impl AppState {
         Self {
             secret: Uuid::new_v4(),
             record: None,
+            http: reqwest::Client::new(),
             db: DatabaseAsync::new(Arc::new(db)),
             live_traccar: broadcast::channel(16).0,
             live_locations: broadcast::channel(4096).0,
