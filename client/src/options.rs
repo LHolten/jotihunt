@@ -53,7 +53,7 @@ pub fn traccar_panel(key: &'static str) {
                 .build();
 
             view! {
-                summary {"Traccar"}
+                summary(title="Traccar") { span(class="icon") {"📡"} span(class="label") {" Traccar"} }
                 ol {
                     li {
                         "Installeer de "
@@ -98,7 +98,7 @@ pub fn option_panel() {
             });
 
             view! {
-                summary {"Opties"}
+                summary(title="Opties") { span(class="icon") {"⚙️"} span(class="label") {" Opties"} }
                 div(class="field"){
                     label(r#for="group_names"){"Groepsnamen tonen:"}
                     input(id="group_names", r#type="checkbox", bind:checked=group_names)
