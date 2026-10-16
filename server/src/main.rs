@@ -245,11 +245,17 @@ pub struct AppState {
 impl AppState {
     /// Nothing is recorded, `geojson` and `areas` start out empty.
     pub fn new(config: Config) -> Self {
+        let b = reqwest::Client::builder();
+
+        #[cfg(test)]
+        // Tests don't access the network, and the build sandbox has no system certificates to load.
+        let b = b.tls_certs_only([]);
+
         let db = Database::<Schema>::new(config);
         Self {
             secret: Uuid::new_v4(),
             record: None,
-            http: reqwest::Client::new(),
+            http: b.build().unwrap(),
             db: DatabaseAsync::new(Arc::new(db)),
             live_traccar: broadcast::channel(16).0,
             live_locations: broadcast::channel(4096).0,
