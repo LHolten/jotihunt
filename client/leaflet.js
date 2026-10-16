@@ -175,7 +175,7 @@ function add_legend(unknown) {
         for (const area of area_names) {
             // the area keeps its color for the foxes, only its groups are grey
             const excluded = excluded_areas.has(area);
-            add_row(area_color(area), excluded ? `${area} (niet jagen)` : area, excluded);
+            add_row(area_color(area), area, excluded);
         }
         if (unknown) {
             add_row(no_color, "onbekend", false);
