@@ -4,7 +4,7 @@ use async_stream::stream;
 use axum::{
     body::Bytes,
     extract::Query,
-    http::{header::CONTENT_TYPE, HeaderMap, Method, StatusCode, Uri},
+    http::{HeaderMap, Method, StatusCode, Uri, header::CONTENT_TYPE},
     response::sse::{Event, KeepAlive, Sse},
 };
 use futures_util::{Stream, StreamExt};

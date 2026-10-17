@@ -10,7 +10,7 @@ mod traccar;
 use std::{
     collections::HashMap,
     convert::Infallible,
-    fs::{read_to_string, File},
+    fs::{File, read_to_string},
     io::Write,
     sync::Arc,
 };
@@ -20,30 +20,30 @@ use arc_swap::ArcSwap;
 use article::{article_content, retrieve_articles_loop};
 use async_stream::stream;
 use axum::{
+    Router,
     body::Bytes,
     extract::{Path, Request},
     http::StatusCode,
     middleware::Next,
     response::{
-        sse::{Event, KeepAlive, Sse},
         IntoResponse,
+        sse::{Event, KeepAlive, Sse},
     },
     routing::{any, get, post},
-    Router,
 };
 use clap::Parser;
 use futures_util::{Stream, StreamExt};
 use geojson::reload_geojson_loop;
 use jotihunt_shared::{
-    domain::{ArticleKey, FoxKey},
     Broadcast, Traccar,
+    domain::{ArticleKey, FoxKey},
 };
 use location::{create_location, delete_location, modify_location};
 use login::login;
 use record::Recorder;
 use rust_query::{
-    migration::Config, private::IntoJoinable, Database, DatabaseAsync, Expr, FromExpr, Select,
-    Table, TableRow,
+    Database, DatabaseAsync, Expr, FromExpr, Select, Table, TableRow, migration::Config,
+    private::IntoJoinable,
 };
 use serde::Serialize;
 
@@ -194,7 +194,7 @@ async fn main() -> anyhow::Result<()> {
     #[cfg(unix)]
     if !cfg!(debug_assertions) {
         use std::{
-            fs::{set_permissions, Permissions},
+            fs::{Permissions, set_permissions},
             os::unix::fs::PermissionsExt,
         };
 
@@ -285,8 +285,8 @@ async fn event_stream<T: Table<Schema = Schema>>(
     live: &'static Live,
     table: impl 'static + Send + for<'x> IntoJoinable<'x, Schema, Typ = TableRow<T>>,
     select: impl 'static
-        + Send
-        + for<'x> FnOnce(Expr<'x, Schema, TableRow<T>>) -> Select<'x, Schema, String>,
+    + Send
+    + for<'x> FnOnce(Expr<'x, Schema, TableRow<T>>) -> Select<'x, Schema, String>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     // This uses a mutable transaction, because those are serialized with all
     // transactions that send changes. That is what guarantees no change is missed.

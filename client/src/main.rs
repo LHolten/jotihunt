@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, future::pending, rc::Rc, time::Duration};
 
-use comms::{live_updated, LocationEdit};
+use comms::{LocationEdit, live_updated};
 use gloo::{
     dialogs::{alert, confirm},
     net::http::{Request, RequestBuilder, Response},
@@ -9,8 +9,8 @@ use gloo::{
     utils::{document, window},
 };
 use jotihunt_shared::{
-    domain::{Area, Fox, FoxKey},
     ModifyLocation,
+    domain::{Area, Fox, FoxKey},
 };
 use js_sys::Date;
 use leaflet::Line;
