@@ -25,7 +25,7 @@ enum Update {
 }
 
 impl Update {
-    fn view(self, time: String) -> View {
+    fn view(self, time: String, opened: Signal<Option<(ArticleKey, SavedArticle)>>) -> View {
         let date = js_sys::Date::new_0();
         date.set_time(js_sys::Date::parse(&time));
         let hours = date.get_hours();
@@ -62,7 +62,7 @@ impl Update {
                 view! {
                     p {
                         input (r#type="button", on:click = move |_| {
-                            update_page(&key, &article);
+                            opened.set(Some((key.clone(), article.clone())));
                         }, value=title)
                     }
                 }
@@ -88,8 +88,11 @@ pub fn articles() {
         .get_element_by_id("articles")
         .expect("there is an articles element");
 
-    sycamore::render_to(
-        || {
+    let opened = create_signal(None);
+    article_page(opened);
+
+    sycamore::render_in_scope(
+        move || {
             let articles =
                 live_table::<ArticleKey, SavedArticle>(format!("https://{HOSTNAME}/articles"));
             let status = live_table::<StatusKey, String>(format!("https://{HOSTNAME}/status"));
@@ -173,7 +176,7 @@ pub fn articles() {
                 }
                 Keyed(
                     list=combined,
-                    view=|(time, update)| update.view(time),
+                    view=move |(time, update)| update.view(time, opened),
                     key=|x|x.clone()
                 )
             }
@@ -188,16 +191,6 @@ fn get_element(name: &str) -> Element {
         .expect(&format!("there is a {name} element"))
 }
 
-fn reset_page() {
-    let page = get_element("page");
-    let map = get_element("map");
-    let panel_column = get_element("panel_column");
-
-    page.set_attribute("hidden", "").unwrap();
-    map.remove_attribute("hidden").unwrap();
-    panel_column.remove_attribute("hidden").unwrap();
-}
-
 /// The stream does not include the body of articles, so it is loaded here.
 async fn article_content(key: &ArticleKey) -> String {
     let publish_at = String::from(encode_uri_component(&key.publish_at));
@@ -206,40 +199,44 @@ async fn article_content(key: &ArticleKey) -> String {
     res.text().await.unwrap()
 }
 
-fn update_page(key: &ArticleKey, article: &SavedArticle) {
-    let key = key.clone();
-    let article = article.clone();
-
+/// Shows the opened article instead of the map.
+fn article_page(opened: Signal<Option<(ArticleKey, SavedArticle)>>) {
     let page = get_element("page");
     let map = get_element("map");
     let panel_column = get_element("panel_column");
 
-    page.remove_attribute("hidden").unwrap();
-    map.set_attribute("hidden", "").unwrap();
-    panel_column.set_attribute("hidden", "").unwrap();
+    create_effect(move || {
+        let open = opened.with(Option::is_some);
+        page.toggle_attribute_with_force("hidden", !open).unwrap();
+        map.toggle_attribute_with_force("hidden", open).unwrap();
+        panel_column
+            .toggle_attribute_with_force("hidden", open)
+            .unwrap();
+    });
 
-    page.set_inner_html("");
-
-    sycamore::render_to(
+    sycamore::render_in_scope(
         move || {
-            let content = create_node_ref();
-            spawn_local_scoped(async move {
-                let html = article_content(&key).await;
-                content
-                    .get()
-                    .unchecked_into::<Element>()
-                    .set_inner_html(&html);
-            });
-
             view! {
-                input(r#type="button", value="Terug", on:click=|_|{
-                    reset_page()
-                })
-                h1 {(article.title)}
-                p {div(ref=content) {"laden..."}}
+                // a new scope for every article, so loading the previous one is stopped
+                (opened.get_clone().map(|(key, article)| {
+                    let content = create_node_ref();
+                    spawn_local_scoped(async move {
+                        let html = article_content(&key).await;
+                        content
+                            .get()
+                            .unchecked_into::<Element>()
+                            .set_inner_html(&html);
+                    });
+
+                    view! {
+                        input(r#type="button", value="Terug", on:click=move |_| opened.set(None))
+                        h1 {(article.title)}
+                        p {div(ref=content) {"laden..."}}
+                    }
+                }))
             }
         },
-        &page,
+        &get_element("page"),
     )
 }
 

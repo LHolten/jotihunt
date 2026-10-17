@@ -29,7 +29,7 @@ pub fn traccar_panel(key: &'static str) {
         .get_element_by_id("traccar_panel")
         .expect("there is a traccar panel");
 
-    sycamore::render_to(
+    sycamore::render_in_scope(
         move || {
             let show_live = create_signal(true);
 
@@ -79,7 +79,7 @@ pub fn option_panel() {
         .get_element_by_id("option_panel")
         .expect("there is a option panel");
 
-    sycamore::render_to(
+    sycamore::render_in_scope(
         move || {
             let group_names = create_signal(LocalStorage::get(GROUP_NAMES_KEY).unwrap_or(true));
             let group_names_zoom =

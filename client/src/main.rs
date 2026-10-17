@@ -15,10 +15,7 @@ use jotihunt_shared::{
 use js_sys::Date;
 use leaflet::Line;
 use options::{option_panel, traccar_panel};
-use sycamore::{
-    futures::{spawn_local, spawn_local_scoped},
-    prelude::*,
-};
+use sycamore::{futures::spawn_local_scoped, prelude::*};
 
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{HtmlFormElement, HtmlInputElement, Url};
@@ -220,7 +217,7 @@ fn location_editor(key: &'static str, areas: Vec<Area>) {
         .get_element_by_id("coord_editor")
         .expect("there is a add_point button");
 
-    sycamore::render_to(
+    sycamore::render_in_scope(
         move || {
             let (data, send_edit) = live_updated::<FoxKey, Fox>(key, "locations");
 
@@ -405,30 +402,33 @@ fn show_login(redirect: &str) {
 fn main() {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 
-    spawn_local(async {
-        let areas: Vec<Area> = Request::get(&format!("https://{HOSTNAME}/areas.json"))
-            .send()
-            .await
-            .unwrap()
-            .json()
-            .await
-            .unwrap();
-        let name = |area: &Area| area.name.clone();
-        leaflet::set_areas(
-            areas.iter().map(name).collect(),
-            areas
-                .iter()
-                .filter(|area| !area.huntable)
-                .map(name)
-                .collect(),
-        );
-        leaflet::load_participants(&format!("https://{HOSTNAME}/deelnemers.geojson"));
+    // the whole app shares this reactive root, it lives as long as the page
+    let _ = create_root(|| {
+        spawn_local_scoped(async {
+            let areas: Vec<Area> = Request::get(&format!("https://{HOSTNAME}/areas.json"))
+                .send()
+                .await
+                .unwrap()
+                .json()
+                .await
+                .unwrap();
+            let name = |area: &Area| area.name.clone();
+            leaflet::set_areas(
+                areas.iter().map(name).collect(),
+                areas
+                    .iter()
+                    .filter(|area| !area.huntable)
+                    .map(name)
+                    .collect(),
+            );
+            leaflet::load_participants(&format!("https://{HOSTNAME}/deelnemers.geojson"));
 
-        let key = Box::leak(retrieve_secret().await.into_boxed_str());
+            let key = Box::leak(retrieve_secret().await.into_boxed_str());
 
-        location_editor(key, areas);
-        traccar_panel(key);
-        option_panel();
-        articles::articles();
+            location_editor(key, areas);
+            traccar_panel(key);
+            option_panel();
+            articles::articles();
+        });
     });
 }

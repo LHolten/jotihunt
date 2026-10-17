@@ -43,6 +43,15 @@ body {
     }
 }
 
+#panel_column>#offline_banner {
+    background-color: darkred;
+
+    // only comments are left when there is no connection problem
+    &:empty {
+        display: none;
+    }
+}
+
 #panel_column>details>summary {
     cursor: pointer;
 }

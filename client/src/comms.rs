@@ -1,20 +1,16 @@
-use std::{collections::BTreeMap, future::ready};
+use std::collections::BTreeMap;
 
 use crate::leaflet::Marker;
 use crate::HOSTNAME;
-use futures::{self, channel::mpsc, Stream, StreamExt};
-use gloo::{
-    dialogs::alert,
-    net::{eventsource::futures::EventSource, http::Request},
-};
+use futures::{self, channel::mpsc, stream, Stream, StreamExt};
+use gloo::{dialogs::alert, events::EventListener, net::http::Request, utils::document};
 use jotihunt_shared::domain::{Fox, FoxKey};
 use jotihunt_shared::{Broadcast, ModifyLocation};
-use js_sys::{encode_uri_component, Date, Uint8Array};
+use js_sys::{encode_uri_component, Uint8Array};
 use serde::de::DeserializeOwned;
-use sycamore::{
-    futures::spawn_local_scoped,
-    reactive::{create_signal, ReadSignal, Signal},
-};
+use sycamore::{futures::spawn_local_scoped, prelude::*};
+use wasm_bindgen::JsCast;
+use web_sys::{Event, EventSource, MessageEvent};
 
 pub enum LocationEdit {
     Create(FoxKey, Fox),
@@ -58,22 +54,142 @@ async fn write_data(mut queue_read: mpsc::UnboundedReceiver<LocationEdit>, addre
     }
 }
 
+/// How the event streams are connected, shown in the banner.
+#[derive(Clone, Copy)]
+struct ConnectionStatus {
+    /// the number of event streams that lost their connection
+    disconnected: Signal<u32>,
+    /// whether the browser gave up on an event stream, then only reopening the page helps
+    gave_up: Signal<bool>,
+}
+
+thread_local! {
+    /// Created in the root scope, so it lives on when the scope that first uses it is gone.
+    static STATUS: ConnectionStatus = use_global_scope().run_in(connection_banner);
+}
+
+fn status() -> ConnectionStatus {
+    STATUS.with(|status| *status)
+}
+
+/// Shows a banner while an event stream lost its connection.
+fn connection_banner() -> ConnectionStatus {
+    let banner = document()
+        .get_element_by_id("offline_banner")
+        .expect("there is an offline banner");
+
+    let disconnected = create_signal(0);
+    let gave_up = create_signal(false);
+    sycamore::render_in_scope(
+        move || {
+            // the banner is hidden while it is empty
+            view! {
+                (if gave_up.get() {
+                    view! { "Kan geen verbiding maken met de server" }
+                } else if disconnected.get() > 0 {
+                    view! { "Aan het proberen opnieuw verbinding te maken met de server" }
+                } else {
+                    view! {}
+                })
+            }
+        },
+        &banner,
+    );
+    ConnectionStatus {
+        disconnected,
+        gave_up,
+    }
+}
+
+/// Counts as a lost connection for the banner while it exists.
+struct Disconnected;
+
+impl Disconnected {
+    fn new() -> Self {
+        status().disconnected.update(|count| *count += 1);
+        Disconnected
+    }
+}
+
+impl Drop for Disconnected {
+    fn drop(&mut self) {
+        status().disconnected.update(|count| *count -= 1);
+    }
+}
+
+enum SourceEvent {
+    Open,
+    Message(String),
+    Error,
+}
+
+/// One connection to the server sent events at an address,
+/// it is closed when this is dropped.
+struct Connection {
+    source: EventSource,
+    events: mpsc::UnboundedReceiver<SourceEvent>,
+    // the listeners are removed when they are dropped
+    _listeners: [EventListener; 3],
+}
+
+impl Connection {
+    fn new(address: &str) -> Self {
+        let source = EventSource::new(address).unwrap();
+        let (sender, events) = mpsc::unbounded();
+        let listen = |event: &'static str, make: fn(&Event) -> SourceEvent| {
+            let sender = sender.clone();
+            EventListener::new(&source, event, move |e| {
+                let _ = sender.unbounded_send(make(e));
+            })
+        };
+        let _listeners = [
+            listen("open", |_| SourceEvent::Open),
+            listen("message", |e| {
+                let data = e.unchecked_ref::<MessageEvent>().data();
+                SourceEvent::Message(data.as_string().unwrap())
+            }),
+            listen("error", |_| SourceEvent::Error),
+        ];
+        Connection {
+            source,
+            events,
+            _listeners,
+        }
+    }
+}
+
+impl Drop for Connection {
+    fn drop(&mut self) {
+        self.source.close();
+    }
+}
+
 /// The data of all messages from the server sent events at `address`.
 ///
 /// The browser reconnects by itself after most errors, but it gives up when the
-/// server responds with an error (e.g. a 502 while it restarts). The stream then ends.
+/// server responds with an error (e.g. a 502 while it restarts). The stream then ends
+/// and the banner asks to reopen the page.
 pub fn event_messages(address: String) -> impl Stream<Item = String> {
-    // the connection is closed when the `EventSource` is dropped,
-    // so it is moved into the stream
-    let mut events = EventSource::new(&address).unwrap();
-    let messages = events.subscribe("message").unwrap();
-    // errors are only reported once the browser gave up
-    messages
-        .take_while(|msg| ready(msg.is_ok()))
-        .map(move |msg| {
-            let _keep_open = &events;
-            msg.unwrap().1.data().as_string().unwrap()
-        })
+    let state = (Connection::new(&address), None::<Disconnected>);
+    stream::unfold(state, |(mut connection, mut disconnected)| async move {
+        loop {
+            match connection.events.next().await.unwrap() {
+                SourceEvent::Open => disconnected = None,
+                SourceEvent::Message(data) => {
+                    return Some((data, (connection, disconnected)));
+                }
+                // also happens in chrome when the page is refreshed,
+                // the banner is only visible for a moment then
+                SourceEvent::Error if connection.source.ready_state() == EventSource::CLOSED => {
+                    status().gave_up.set(true);
+                    return None;
+                }
+                SourceEvent::Error => {
+                    disconnected.get_or_insert_with(Disconnected::new);
+                }
+            }
+        }
+    })
 }
 
 async fn read_data<K, V>(address: String, data: Signal<BTreeMap<K, V>>)
@@ -97,13 +213,6 @@ where
             }
         }
     }
-
-    let local_time = Date::new_0().to_time_string();
-    let msg = format!(
-        "verbinding verbroken: ververs de pagina voor nieuwe data!
-        {local_time}"
-    );
-    alert(&msg)
 }
 
 /// All rows of the table with server sent events at `address`, kept up to date.
