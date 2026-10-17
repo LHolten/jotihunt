@@ -33,7 +33,7 @@ use axum::{
 };
 use clap::Parser;
 use futures_util::{Stream, StreamExt};
-use geojson::{get_geo, reload_geojson_loop};
+use geojson::reload_geojson_loop;
 use jotihunt_shared::{
     domain::{ArticleKey, FoxKey},
     Broadcast, Traccar,
@@ -48,7 +48,7 @@ use rust_query::{
 use serde::Serialize;
 
 use db::{Article, ArticleRow, Location, LocationRow, Schema, Status, StatusRow};
-use status::{retrieve_status, retrieve_status_loop};
+use status::retrieve_status_loop;
 use tokio::sync::broadcast::{self, error::RecvError};
 use tower_http::cors::CorsLayer;
 use traccar::{live_events, receive_location};
@@ -76,9 +76,9 @@ async fn main() -> anyhow::Result<()> {
         record: args.record.map(Recorder::new),
         ..AppState::new(Config::open("joti.sqlite"))
     });
-    state.geojson.store(Arc::new(get_geo(state).await.unwrap()));
-    retrieve_status(state).await.unwrap();
 
+    // the loops fetch from jotihunt.nl right away and keep retrying on failure,
+    // so the server also starts when jotihunt.nl is down
     tokio::spawn(reload_geojson_loop(state));
     tokio::spawn(retrieve_status_loop(state));
     tokio::spawn(retrieve_articles_loop(state));
