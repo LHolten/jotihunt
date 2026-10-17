@@ -1,5 +1,5 @@
 use jotihunt_shared::domain::{ArticleKey, Fox, FoxKey, SavedArticle, StatusKey};
-use rust_query::{migration::schema, FromExpr};
+use rust_query::{FromExpr, migration::schema};
 
 #[schema(Schema)]
 pub mod vN {

@@ -1,4 +1,4 @@
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::{HashMap, hash_map::Entry};
 
 use futures::StreamExt;
 use gloo::{
@@ -8,13 +8,13 @@ use gloo::{
 };
 use jotihunt_shared::Traccar;
 use js_sys::Date;
-use qrcode::{render::svg, QrCode};
+use qrcode::{QrCode, render::svg};
 use sycamore::{futures::spawn_local_scoped, prelude::*};
 
 use crate::{
-    comms::event_messages,
-    leaflet::{set_group_names, LiveMarker},
     HOSTNAME,
+    comms::event_messages,
+    leaflet::{LiveMarker, set_group_names},
 };
 
 /// Seconds between traccar updates of a phone that is standing still,

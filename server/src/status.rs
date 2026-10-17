@@ -4,7 +4,7 @@ use jotihunt_shared::domain::{Area, StatusKey};
 use serde::Deserialize;
 use tokio::time::sleep;
 
-use crate::{db::Status, encode_broadcast, AppState};
+use crate::{AppState, db::Status, encode_broadcast};
 
 #[derive(Deserialize)]
 struct Areas {
