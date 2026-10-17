@@ -12,7 +12,7 @@ use sycamore::{futures::spawn_local_scoped, prelude::*};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::Element;
 
-use crate::{comms::live_table, leaflet, HOSTNAME};
+use crate::{HOSTNAME, comms::live_table, leaflet};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 enum Update {

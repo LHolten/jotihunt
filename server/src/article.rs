@@ -4,7 +4,7 @@ use jotihunt_shared::domain::{ArticleKey, SavedArticle};
 use serde::Deserialize;
 use tokio::time::sleep;
 
-use crate::{encode_broadcast, AppState};
+use crate::{AppState, encode_broadcast};
 
 #[derive(Deserialize)]
 struct Articles {
