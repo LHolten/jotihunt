@@ -359,7 +359,7 @@ async fn retrieve_secret() -> String {
 
     if let Ok(secret) = LocalStorage::get::<String>(SECRET_KEY) {
         let check = format!("https://{HOSTNAME}/{secret}/check");
-        if authorized(|| Request::get(&check)).await.is_some() {
+        if authorized(Request::get(&check)).await.is_some() {
             return secret;
         }
     }
@@ -368,17 +368,18 @@ async fn retrieve_secret() -> String {
     pending().await
 }
 
-/// Sends the request until the server answers, `None` means it was unauthorized.
-async fn authorized(request: impl Fn() -> RequestBuilder) -> Option<Response> {
-    loop {
-        match request().send().await {
-            Ok(res) if res.ok() => return Some(res),
-            Ok(res) if res.status() == 401 => return None,
-            Ok(res) => alert(&format!("inloggen mislukt: {}", res.status_text())),
-            Err(err) => alert(&format!("inloggen mislukt: {err}")),
-        }
-        sleep(Duration::from_secs(5)).await;
+/// Sends the request, `None` means it was unauthorized.
+///
+/// This never returns when the server can not be reached, the banner then asks to reopen the page.
+async fn authorized(request: RequestBuilder) -> Option<Response> {
+    let Ok(res) = request.send().await else {
+        return comms::connection_lost().await;
+    };
+    if res.status() == 401 {
+        return None;
     }
+    assert!(res.ok(), "inloggen mislukt: {}", res.status_text());
+    Some(res)
 }
 
 /// Shows the login form, which posts the password to the server.
@@ -405,13 +406,13 @@ fn main() {
     // the whole app shares this reactive root, it lives as long as the page
     let _ = create_root(|| {
         spawn_local_scoped(async {
-            let areas: Vec<Area> = Request::get(&format!("https://{HOSTNAME}/areas.json"))
+            let Ok(res) = Request::get(&format!("https://{HOSTNAME}/areas.json"))
                 .send()
                 .await
-                .unwrap()
-                .json()
-                .await
-                .unwrap();
+            else {
+                return comms::connection_lost().await;
+            };
+            let areas: Vec<Area> = res.json().await.unwrap();
             let name = |area: &Area| area.name.clone();
             leaflet::set_areas(
                 areas.iter().map(name).collect(),

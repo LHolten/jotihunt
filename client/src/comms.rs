@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, future::pending};
 
 use crate::leaflet::Marker;
 use crate::HOSTNAME;
@@ -101,6 +101,13 @@ fn connection_banner() -> ConnectionStatus {
     }
 }
 
+/// Makes the banner ask to reopen the page and never finishes,
+/// for connections that are not retried.
+pub async fn connection_lost<T>() -> T {
+    status().gave_up.set(true);
+    pending().await
+}
+
 /// Counts as a lost connection for the banner while it exists.
 struct Disconnected;
 
@@ -167,7 +174,7 @@ impl Drop for Connection {
 /// The data of all messages from the server sent events at `address`.
 ///
 /// The browser reconnects by itself after most errors, but it gives up when the
-/// server responds with an error (e.g. a 502 while it restarts). The stream then ends
+/// server responds with an error (e.g. a 502 while it restarts). The stream then stops
 /// and the banner asks to reopen the page.
 pub fn event_messages(address: String) -> impl Stream<Item = String> {
     let state = (Connection::new(&address), None::<Disconnected>);
@@ -181,8 +188,7 @@ pub fn event_messages(address: String) -> impl Stream<Item = String> {
                 // also happens in chrome when the page is refreshed,
                 // the banner is only visible for a moment then
                 SourceEvent::Error if connection.source.ready_state() == EventSource::CLOSED => {
-                    status().gave_up.set(true);
-                    return None;
+                    return connection_lost().await;
                 }
                 SourceEvent::Error => {
                     disconnected.get_or_insert_with(Disconnected::new);
