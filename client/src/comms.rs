@@ -1,19 +1,19 @@
 use std::{collections::BTreeMap, future::ready};
 
-use crate::leaflet::Marker;
 use crate::HOSTNAME;
-use futures::{self, channel::mpsc, Stream, StreamExt};
+use crate::leaflet::Marker;
+use futures::{self, Stream, StreamExt, channel::mpsc};
 use gloo::{
     dialogs::alert,
     net::{eventsource::futures::EventSource, http::Request},
 };
 use jotihunt_shared::domain::{Fox, FoxKey};
 use jotihunt_shared::{Broadcast, ModifyLocation};
-use js_sys::{encode_uri_component, Date, Uint8Array};
+use js_sys::{Date, Uint8Array, encode_uri_component};
 use serde::de::DeserializeOwned;
 use sycamore::{
     futures::spawn_local_scoped,
-    reactive::{create_signal, ReadSignal, Signal},
+    reactive::{ReadSignal, Signal, create_signal},
 };
 
 pub enum LocationEdit {

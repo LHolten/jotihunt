@@ -1,13 +1,14 @@
 use axum::http::StatusCode;
 use jotihunt_shared::{
-    domain::{Fox, FoxKey},
     ModifyLocation,
+    domain::{Fox, FoxKey},
 };
 use rust_query::{FromExpr, TableRow, Transaction};
 
 use crate::{
+    AppState,
     db::{Location, LocationRow, Schema},
-    encode_broadcast, AppState,
+    encode_broadcast,
 };
 
 /// Insert a new location, fails with 409 if it already exists.

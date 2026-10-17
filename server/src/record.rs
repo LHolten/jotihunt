@@ -6,7 +6,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use reqwest::{header::RETRY_AFTER, Response, StatusCode};
+use reqwest::{Response, StatusCode, header::RETRY_AFTER};
 use tokio::time::sleep;
 
 use crate::AppState;
